@@ -1,0 +1,12 @@
+services:
+  relay:
+    image: scsibug/nostr-rs-relay:latest
+    container_name: nostrum-smoke-relay
+    ports:
+      - "7777:8080"
+    volumes:
+      - relay-data:/usr/src/app/db
+    restart: unless-stopped
+
+volumes:
+  relay-data:

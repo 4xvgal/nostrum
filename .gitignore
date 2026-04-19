@@ -5,3 +5,4 @@ dist/
 coverage/
 .env*
 bun.lockb
+.nostream-run/
