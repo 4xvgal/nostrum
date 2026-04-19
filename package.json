@@ -1,0 +1,17 @@
+{
+  "name": "nostrum",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "typecheck": "tsc -b",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/bun": "^1.1.13"
+  },
+  "engines": {
+    "bun": ">=1.1.30"
+  }
+}
