@@ -23,24 +23,40 @@ type LogEntry = { at: number; text: string }
 
 const SPARK_CHARS = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
 
-function sparkline(samples: number[]): string {
-  if (samples.length === 0) return ''
+function Sparkline({ samples }: { samples: number[] }) {
+  if (samples.length === 0) return <span class="dim">—</span>
   const min = Math.min(...samples)
   const max = Math.max(...samples)
   const span = max - min || 1
-  return samples
-    .map((v) => {
-      const idx = Math.min(
-        SPARK_CHARS.length - 1,
-        Math.max(0, Math.round(((v - min) / span) * (SPARK_CHARS.length - 1))),
-      )
-      return SPARK_CHARS[idx]
-    })
-    .join('')
+  return (
+    <>
+      {samples.map((v, i) => {
+        const idx = Math.min(
+          SPARK_CHARS.length - 1,
+          Math.max(
+            0,
+            Math.round(((v - min) / span) * (SPARK_CHARS.length - 1)),
+          ),
+        )
+        const prev = samples[i - 1]
+        const cls =
+          prev === undefined || v === prev ? 'dim' : v > prev ? 'up' : 'down'
+        return <span class={cls}>{SPARK_CHARS[idx]}</span>
+      })}
+    </>
+  )
 }
 
 function shortBech(s: string): string {
   return s.length <= 20 ? s : s.slice(0, 12) + '…' + s.slice(-6)
+}
+
+function humanDuration(sec: number): string {
+  if (!Number.isFinite(sec) || sec <= 0) return '—'
+  if (sec < 60) return `${sec}s`
+  if (sec < 3600) return `${(sec / 60).toFixed(sec % 60 ? 1 : 0)}m`
+  if (sec < 86_400) return `${(sec / 3600).toFixed(sec % 3600 ? 1 : 0)}h`
+  return `${(sec / 86_400).toFixed(sec % 86_400 ? 1 : 0)}d`
 }
 
 async function copy(text: string): Promise<void> {
@@ -57,20 +73,34 @@ export function App() {
   const [bootError, setBootError] = useState<string | null>(null)
   const [price, setPrice] = useState<Price | null>(null)
   const [history, setHistory] = useState<number[]>([])
+  const [priceLog, setPriceLog] = useState<
+    { at: number; usd: number; deltaPct: number | null }[]
+  >([])
   const [subs, setSubs] = useState<Subscription[]>([])
   const [dms, setDms] = useState<IncomingDm[]>([])
   const [busy, setBusy] = useState(false)
   const [log, setLog] = useState<LogEntry[]>([])
   const [threshold, setThreshold] = useState('5')
   const [direction, setDirection] = useState<'up' | 'down' | 'both'>('both')
-  const [windowSec, setWindowSec] = useState('86400')
+  const [cooldownSec, setCooldownSec] = useState('1800')
   const [showNsec, setShowNsec] = useState(false)
+  const [pollSec, setPollSec] = useState(() => {
+    const saved = localStorage.getItem('btc-alert:poll-sec')
+    return saved && Number(saved) >= 5 ? saved : '30'
+  })
   const [nsecInput, setNsecInput] = useState('')
   const [notifyInput, setNotifyInput] = useState('')
   const [identityError, setIdentityError] = useState<string | null>(null)
 
   const logLine = (text: string): void =>
     setLog((prev) => [...prev.slice(-40), { at: Date.now(), text }])
+
+  const applyPoll = (raw: string): void => {
+    const n = Math.max(5, Math.floor(Number(raw)) || 5)
+    const s = String(n)
+    setPollSec(s)
+    localStorage.setItem('btc-alert:poll-sec', s)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -95,6 +125,12 @@ export function App() {
       ])
       setPrice(p)
       setHistory((h) => [...h.slice(-47), p.usd])
+      setPriceLog((prev) => {
+        if (prev[0] && prev[0].at === p.fetchedAt) return prev
+        const last = prev[0]
+        const deltaPct = last ? ((p.usd - last.usd) / last.usd) * 100 : null
+        return [{ at: p.fetchedAt, usd: p.usd, deltaPct }, ...prev].slice(0, 20)
+      })
       setSubs(s)
     } catch (e) {
       logLine(`refresh failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -103,11 +139,12 @@ export function App() {
 
   useEffect(() => {
     if (!client) return
-    logLine('tunnel ready — fetching initial state')
+    const n = Math.max(5, Math.floor(Number(pollSec)) || 30)
+    logLine(`polling every ${n}s`)
     void refresh(client)
-    const timer = setInterval(() => void refresh(client), 30_000)
+    const timer = setInterval(() => void refresh(client), n * 1000)
     return () => clearInterval(timer)
-  }, [client])
+  }, [client, pollSec])
 
   useEffect(() => {
     if (!client) return
@@ -137,14 +174,14 @@ export function App() {
     setBusy(true)
     try {
       const th = Number(threshold)
-      const ws = Number(windowSec)
+      const cd = Number(cooldownSec)
       await createSubscription(client, identity.sk, {
         threshold_pct: th,
         direction,
-        window_sec: ws,
+        cooldown_sec: cd,
         ...(identity.separateNotify ? { notify_pubkey: identity.notifyPk } : {}),
       })
-      logLine(`subscribed ±${th}% ${direction} over ${ws}s`)
+      logLine(`subscribed ±${th}% ${direction} · cooldown ${cd}s`)
       await refresh(client)
     } catch (err) {
       logLine(`subscribe failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -216,22 +253,80 @@ export function App() {
 
   return (
     <div>
-      <section class="panel">
-        <div class="panel-title">btc-alert</div>
-        <div class="price-line">
-          BTC/USD <span class={changeClass}>{arrow}</span>{' '}
-          {price ? `$${price.usd.toLocaleString()}` : '—'}{' '}
-          <span class={changeClass}>
-            {price
-              ? `${price.change24hPct >= 0 ? '+' : ''}${price.change24hPct.toFixed(2)}%`
-              : ''}
-          </span>
-        </div>
-        <div class="dim">{sparkline(history) || '—'}</div>
-        <div class="muted">
-          as-of {price ? new Date(price.fetchedAt).toLocaleTimeString() : '—'}
-        </div>
-      </section>
+      <div class="top-row">
+        <section class="panel">
+          <div class="panel-title">btc-alert</div>
+          <div class="price-line">
+            BTC/USD <span class={changeClass}>{arrow}</span>{' '}
+            {price ? `$${price.usd.toLocaleString()}` : '—'}{' '}
+            <span class={changeClass}>
+              {price
+                ? `${price.change24hPct >= 0 ? '+' : ''}${price.change24hPct.toFixed(2)}%`
+                : ''}
+            </span>
+          </div>
+          <div>
+            <Sparkline samples={history} />
+          </div>
+          <div class="muted">
+            as-of {price ? new Date(price.fetchedAt).toLocaleTimeString() : '—'}
+          </div>
+          <div class="form-row" style="margin-top:6px">
+            <span class="muted">poll</span>
+            <input
+              value={pollSec}
+              onInput={(e) => setPollSec((e.target as HTMLInputElement).value)}
+              onBlur={(e) => applyPoll((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  applyPoll((e.target as HTMLInputElement).value)
+                }
+              }}
+              size={4}
+              aria-label="poll interval seconds"
+            />
+            <span class="dim">sec (min 5)</span>
+            {([['5s', 5], ['30s', 30], ['2m', 120]] as const).map(([label, s]) => (
+              <span key={label} class="x" onClick={() => applyPoll(String(s))}>
+                [{label}]
+              </span>
+            ))}
+          </div>
+        </section>
+
+        <section class="panel alerts">
+          <div class="panel-title">price log</div>
+          {priceLog.length === 0 ? (
+            <div class="muted">no polls yet</div>
+          ) : (
+            priceLog.slice(0, 6).map((row) => {
+              const cls =
+                row.deltaPct === null
+                  ? 'dim'
+                  : row.deltaPct > 0
+                    ? 'up'
+                    : row.deltaPct < 0
+                      ? 'down'
+                      : 'dim'
+              const sign = row.deltaPct !== null && row.deltaPct > 0 ? '+' : ''
+              return (
+                <div key={row.at} class="alert-row">
+                  <span class="muted">
+                    {new Date(row.at).toLocaleTimeString()}
+                  </span>
+                  <span>${row.usd.toLocaleString()}</span>
+                  <span class={cls}>
+                    {row.deltaPct === null
+                      ? '·'
+                      : `${sign}${row.deltaPct.toFixed(2)}%`}
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </section>
+      </div>
 
       <section class="panel">
         <div class="panel-title">identity</div>
@@ -314,7 +409,7 @@ export function App() {
             <div key={s.id} class="sub-row">
               <span class="muted">[{s.id.slice(0, 8)}]</span>
               <span>
-                ±{s.thresholdPct}% {s.direction} / {s.windowSec}s
+                ±{s.thresholdPct}% {s.direction} · cooldown {humanDuration(s.cooldownSec)}
               </span>
               <span class="dim">
                 base ${s.baselineUsd.toLocaleString()}
@@ -331,6 +426,7 @@ export function App() {
         )}
         <form class="form-row" onSubmit={onCreate}>
           <span class="prompt">&gt;</span>
+          <span class="muted">±</span>
           <input
             value={threshold}
             onInput={(e) => setThreshold((e.target as HTMLInputElement).value)}
@@ -345,20 +441,41 @@ export function App() {
             }
           >
             <option value="both">both</option>
-            <option value="up">up</option>
-            <option value="down">down</option>
+            <option value="up">up only</option>
+            <option value="down">down only</option>
           </select>
+          <span class="muted">cooldown</span>
           <input
-            value={windowSec}
-            onInput={(e) => setWindowSec((e.target as HTMLInputElement).value)}
-            size={8}
-            aria-label="window seconds"
+            value={cooldownSec}
+            onInput={(e) => setCooldownSec((e.target as HTMLInputElement).value)}
+            size={6}
+            aria-label="cooldown seconds"
           />
-          <span class="dim">sec</span>
+          <span class="dim">sec ({humanDuration(Number(cooldownSec))})</span>
           <button type="submit" disabled={busy || !client}>
             [n]ew
           </button>
         </form>
+        <div class="form-row">
+          <span class="muted">preset:</span>
+          {([
+            ['5m', 300],
+            ['30m', 1800],
+            ['2h', 7200],
+          ] as const).map(([label, sec]) => (
+            <span
+              key={label}
+              class="x"
+              onClick={() => setCooldownSec(String(sec))}
+            >
+              [{label}]
+            </span>
+          ))}
+        </div>
+        <div class="muted" style="margin-top:6px; white-space:normal">
+          DM when ±{threshold || '?'}% from baseline · baseline resets only
+          after a fire · next alert silenced for {humanDuration(Number(cooldownSec))}.
+        </div>
       </section>
 
       <section class="panel">

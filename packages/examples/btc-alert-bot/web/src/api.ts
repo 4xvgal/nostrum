@@ -10,7 +10,7 @@ export type Subscription = {
   notifyPubkey: string
   thresholdPct: number
   direction: 'up' | 'down' | 'both'
-  windowSec: number
+  cooldownSec: number
   baselineUsd: number
   baselineAt: number
   cooldownUntil: number
@@ -45,7 +45,7 @@ export async function createSubscription(
   body: {
     threshold_pct: number
     direction: 'up' | 'down' | 'both'
-    window_sec: number
+    cooldown_sec: number
     notify_pubkey?: string
   },
 ): Promise<Subscription> {

@@ -8,9 +8,11 @@ export type Subscription = {
   notifyPubkey: string
   thresholdPct: number
   direction: Direction
-  windowSec: number
+  /** User-configured pause between DM fires (seconds). */
+  cooldownSec: number
   baselineUsd: number
   baselineAt: number
+  /** Unix ms until which this sub is silenced after a fire. */
   cooldownUntil: number
   createdAt: number
 }

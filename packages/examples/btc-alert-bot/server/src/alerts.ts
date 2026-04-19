@@ -2,12 +2,14 @@ import { onPriceUpdate, type PriceSnapshot } from './price.js'
 import { listAll, update } from './store.js'
 import { sendDm } from './dm.js'
 
-const COOLDOWN_MS = 30 * 60 * 1000
-
-function formatAlert(sub: { thresholdPct: number; direction: string; baselineUsd: number }, snap: PriceSnapshot, deltaPct: number): string {
+function formatAlert(
+  sub: { thresholdPct: number; direction: string; baselineUsd: number },
+  snap: PriceSnapshot,
+  deltaPct: number,
+): string {
   const sign = deltaPct > 0 ? '+' : ''
   return [
-    `[btc-alert] BTC ${sign}${deltaPct.toFixed(2)}% (≥ ±${sub.thresholdPct}%)`,
+    `[btc-alert] BTC ${sign}${deltaPct.toFixed(2)}% (>= +-${sub.thresholdPct}%)`,
     `  price:    $${snap.usd.toLocaleString()}`,
     `  baseline: $${sub.baselineUsd.toLocaleString()}`,
     `  at:       ${new Date(snap.fetchedAt).toISOString()}`,
@@ -15,20 +17,16 @@ function formatAlert(sub: { thresholdPct: number; direction: string; baselineUsd
 }
 
 /**
- * Wire price updates → subscription evaluation → DM dispatch.
- * Returns an unsubscribe fn.
+ * Wire price updates -> subscription evaluation -> DM dispatch.
+ *
+ * Baseline resets only after a trigger fires. Between fires the sub is
+ * silenced for `sub.cooldownSec` seconds.
  */
 export function startAlertDispatcher(): () => void {
   return onPriceUpdate((snap) => {
     const now = Date.now()
     for (const sub of listAll()) {
       if (sub.cooldownUntil > now) continue
-      const ageSec = (now - sub.baselineAt) / 1000
-      if (ageSec > sub.windowSec) {
-        // baseline aged out — refresh silently
-        update(sub.id, { baselineUsd: snap.usd, baselineAt: snap.fetchedAt })
-        continue
-      }
       const deltaPct = ((snap.usd - sub.baselineUsd) / sub.baselineUsd) * 100
       const hit =
         (sub.direction === 'up' && deltaPct >= sub.thresholdPct) ||
@@ -40,7 +38,7 @@ export function startAlertDispatcher(): () => void {
         (e) => console.warn('[dm-send-failed]', sub.id, e),
       )
       update(sub.id, {
-        cooldownUntil: now + COOLDOWN_MS,
+        cooldownUntil: now + sub.cooldownSec * 1000,
         baselineUsd: snap.usd,
         baselineAt: snap.fetchedAt,
       })

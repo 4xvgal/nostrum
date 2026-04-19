@@ -15,9 +15,12 @@ function parseDirection(v: unknown): Direction {
   return 'both'
 }
 
-function parseWindowSec(v: unknown): number {
-  if (typeof v === 'number' && v > 0 && v <= 7 * 24 * 3600) return v
-  return 24 * 3600
+function parseCooldownSec(v: unknown): number {
+  const MIN = 60
+  const MAX = 7 * 24 * 3600
+  const DEFAULT = 1800
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return DEFAULT
+  return Math.max(MIN, Math.min(MAX, Math.floor(v)))
 }
 
 function parseThreshold(v: unknown): number | null {
@@ -50,7 +53,7 @@ export function registerRoutes(app: Hono, route: MiddlewareHandler): void {
       | {
           threshold_pct?: number
           direction?: string
-          window_sec?: number
+          cooldown_sec?: number
           notify_pubkey?: string
         }
       | null
@@ -72,7 +75,7 @@ export function registerRoutes(app: Hono, route: MiddlewareHandler): void {
       notifyPubkey,
       thresholdPct: threshold,
       direction: parseDirection(body?.direction),
-      windowSec: parseWindowSec(body?.window_sec),
+      cooldownSec: parseCooldownSec(body?.cooldown_sec),
       baselineUsd: price.usd,
       baselineAt: price.fetchedAt,
       cooldownUntil: 0,
