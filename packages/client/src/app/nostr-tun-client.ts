@@ -95,7 +95,7 @@ export class NostrTunClient {
   }
 
   pin(origin: string, info: ServerInfo): this {
-    this.#pinned.set(new URL(origin).origin, info)
+    this.#pinned.set(originKey(new URL(origin)), info)
     return this
   }
 
@@ -147,19 +147,20 @@ export class NostrTunClient {
     method: string,
     strict: boolean,
   ): Promise<ResolveTarget> {
-    const pinned = this.#pinned.get(u.origin)
+    const key = originKey(u)
+    const pinned = this.#pinned.get(key)
     if (pinned) return { kind: 'nostr', info: pinned }
 
-    const entry = this.#cache.get(u.origin)
+    const entry = this.#cache.get(key)
     const now = Math.floor(Date.now() / 1000)
     if (entry && entry.expiresAt > now) {
       if (entry.notNostrTun) {
-        if (strict) throw strictErr(`origin ${u.origin} is not NostrTun-aware`)
+        if (strict) throw strictErr(`origin ${key} is not NostrTun-aware`)
         return { kind: 'https' }
       }
       const pathKey = `${method} ${u.pathname}`
       if (entry.disabledPaths.has(pathKey)) {
-        if (strict) throw strictErr(`${pathKey} disabled for Nostr at ${u.origin}`)
+        if (strict) throw strictErr(`${pathKey} disabled for Nostr at ${key}`)
         return { kind: 'https' }
       }
       if (entry.manifest && manifestMatches(entry.manifest, method, u.pathname)) {
@@ -170,22 +171,22 @@ export class NostrTunClient {
           }
         }
         entry.disabledPaths.add(pathKey)
-        if (strict) throw strictErr(`kindSet mismatch at ${u.origin}`)
+        if (strict) throw strictErr(`kindSet mismatch at ${key}`)
         return { kind: 'https' }
       }
       if (entry.manifest) {
         entry.disabledPaths.add(pathKey)
         if (strict)
-          throw strictErr(`${pathKey} not in manifest at ${u.origin}`)
+          throw strictErr(`${pathKey} not in manifest at ${key}`)
         return { kind: 'https' }
       }
     }
 
     if (this.#discovery) {
-      const found = await this.#discovery.resolve(u.origin)
+      const found = await this.#discovery.resolve(key)
       if (found) {
         const ma = 300
-        this.#cache.set(u.origin, {
+        this.#cache.set(key, {
           pubkey: found.pubkey,
           relays: found.relays,
           manifest: null,
@@ -196,9 +197,17 @@ export class NostrTunClient {
       }
     }
 
+    // Nostr-only schemes cannot fall back to HTTPS bootstrap — discovery
+    // is the only path, and it must succeed.
+    if (u.protocol === 'nostr:') {
+      throw strictErr(
+        `origin ${key} could not be resolved via discovery (nostr:// requires pin or DiscoveryPort)`,
+      )
+    }
+
     if (strict) {
       throw strictErr(
-        `origin ${u.origin} is not pinned and strict mode forbids HTTPS bootstrap`,
+        `origin ${key} is not pinned and strict mode forbids HTTPS bootstrap`,
       )
     }
     return { kind: 'https-and-learn' }
@@ -251,7 +260,7 @@ export class NostrTunClient {
         timer,
         url,
         init,
-        origin: u.origin,
+        origin: originKey(u),
         method,
         pathname: u.pathname,
         expiresAt,
@@ -272,7 +281,7 @@ export class NostrTunClient {
     const res = await globalThis.fetch(url, init)
     if (this.config.learnFromAdvertisement === false) return res
     const now = Math.floor(Date.now() / 1000)
-    const origin = new URL(url).origin
+    const origin = originKey(new URL(url))
     const header = res.headers.get('Nostr-Tun-Location')
     const parsed = header ? parseNostrTunLocation(header) : null
     if (!parsed) {
@@ -545,4 +554,15 @@ function sameKindSet(a: KindSet, b: KindSet): boolean {
     a.responseRumor === b.responseRumor &&
     a.wrap === b.wrap
   )
+}
+
+/**
+ * Stable per-origin key for caches/pins. The WHATWG URL parser returns
+ * origin === 'null' for non-special schemes (e.g. `nostr://`), which
+ * would collapse every nostr:// origin into one bucket. We fall back to
+ * `<protocol>//<host>` in that case.
+ */
+function originKey(u: URL): string {
+  if (u.origin && u.origin !== 'null') return u.origin
+  return `${u.protocol}//${u.host}`
 }

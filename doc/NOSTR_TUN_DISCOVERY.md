@@ -147,6 +147,59 @@ direct API and must use DoH). The adapter is expected to either:
 
 ---
 
+## Adapter: `NostrServiceDiscoveryAdapter` (kind 31910)
+
+> Resolves `ServerInfo` by **pubkey alone** — no DNS, no HTTPS, no
+> NIP-05. The server publishes a signed service-announcement event to
+> public bootstrap relays; clients read it there. The only strategy
+> that works for deployments with zero name-system surface.
+
+### Wire format
+
+Parameterized-replaceable event (kind provisional, pending NIP draft):
+
+```
+kind    = 31910
+pubkey  = <server hex>
+tags    = [
+  ['d',     '<service-id>'],               // one service per (pubkey, d)
+  ['relay', 'wss://r1'], ['relay', 'wss://r2'],
+  ['alt',   'nostr-tun service manifest'], // NIP-31
+]
+content = JSON.stringify(manifest)         // same schema as /.well-known/nostr-tun.json
+```
+
+The `d` tag lets one pubkey expose multiple services; v0 clients that
+pass only a pubkey pick the most-recent event across all `d` values.
+Servers re-publish periodically (every `ttl`, or ≤10 min) so bootstrap
+relays that prune old replaceables keep surfacing the latest record.
+
+### Adapter
+
+```typescript
+class NostrServiceDiscoveryAdapter implements DiscoveryPort {
+  constructor(config: { bootstrapRelays: string[]; timeoutMs?: number })
+  resolve(origin: string): Promise<ServerInfo | null>
+}
+```
+
+Accepts origins of shape `nostr://<64-char-hex>`; returns `null` for
+other schemes (chains cleanly with NIP-05 / DNS adapters). Fan-queries
+each bootstrap relay, verifies signatures, picks the newest event,
+returns `{ pubkey, relays }`.
+
+### Tradeoffs
+
+- **Pros.** Zero name-system dependency; relay set rotatable by
+  publishing a fresh event; announcement signed, not forgeable.
+- **Cons.** Depends on ≥1 bootstrap relay being reachable; leaks
+  routes/TTL/kindSet to any relay holding the event.
+- **Transport coupling.** `TransportPort` binds one relay URL at
+  construction, so clients resolve up-front and pass `info.relays[0]`
+  to the transport. Multi-relay fan-out is future work.
+
+---
+
 ## Decorator: `CachingDiscoveryAdapter`
 
 > Wraps any `DiscoveryPort` with a positive-result cache. Without it,
