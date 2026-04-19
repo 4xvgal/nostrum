@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "license": "MIT",
   "main": "./src/index.ts",
   "scripts": {
     "dev": "bun run src/index.ts",

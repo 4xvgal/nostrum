@@ -168,3 +168,7 @@ Set `NOSTR_TUN_ADAPTERS=ndk` to switch the harness to the NDK adapters.
 - [`doc/NOSTR_TUN_DISCOVERY.md`](doc/NOSTR_TUN_DISCOVERY.md) — HTTPS-first bootstrap + manifest
 - [`doc/NOSTR_TUN_MILESTONES.md`](doc/NOSTR_TUN_MILESTONES.md) — development phases
 - [`AGENTS.md`](AGENTS.md) — repo invariants
+
+## License
+
+[MIT](LICENSE) — © 2026 NostrTun contributors.
