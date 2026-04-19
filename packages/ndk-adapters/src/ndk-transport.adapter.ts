@@ -1,7 +1,7 @@
 import type NDK from '@nostr-dev-kit/ndk'
 import { NDKEvent, type NDKSubscription } from '@nostr-dev-kit/ndk'
-import { KINDS_NOSTRUM, type KindSet } from '@nostrum/core'
-import type { TransportPort } from '@nostrum/client'
+import { KINDS_NOSTR_TUN, type KindSet } from '@nostr-tun/core'
+import type { TransportPort } from '@nostr-tun/client'
 
 export class NdkTransportAdapter implements TransportPort {
   #handler: ((bytes: Uint8Array) => void) | null = null
@@ -10,7 +10,7 @@ export class NdkTransportAdapter implements TransportPort {
   constructor(
     private readonly ndk: NDK,
     private readonly clientPubkey: string,
-    private readonly kinds: KindSet = KINDS_NOSTRUM,
+    private readonly kinds: KindSet = KINDS_NOSTR_TUN,
   ) {}
 
   async connect(): Promise<void> {

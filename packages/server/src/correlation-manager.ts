@@ -1,4 +1,4 @@
-import type { NostrRequest } from '@nostrum/core'
+import type { NostrRequest } from '@nostr-tun/core'
 import type {
   CorrelationEntry,
   StoragePort,

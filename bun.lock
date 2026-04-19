@@ -3,66 +3,66 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "nostrum",
+      "name": "nostr-tun",
       "devDependencies": {
         "@nostr-dev-kit/ndk": "^2.12.0",
-        "@nostrum/client": "workspace:*",
-        "@nostrum/core": "workspace:*",
-        "@nostrum/ndk-adapters": "workspace:*",
-        "@nostrum/nostr-tools-adapters": "workspace:*",
-        "@nostrum/server": "workspace:*",
+        "@nostr-tun/client": "workspace:*",
+        "@nostr-tun/core": "workspace:*",
+        "@nostr-tun/ndk-adapters": "workspace:*",
+        "@nostr-tun/nostr-tools-adapters": "workspace:*",
+        "@nostr-tun/server": "workspace:*",
         "@types/bun": "^1.1.13",
         "hono": "^4.6.0",
         "typescript": "^5.6.3",
       },
     },
     "packages/client": {
-      "name": "@nostrum/client",
+      "name": "@nostr-tun/client",
       "version": "0.0.0",
       "dependencies": {
-        "@nostrum/core": "workspace:*",
+        "@nostr-tun/core": "workspace:*",
       },
       "devDependencies": {
         "@nostr-dev-kit/ndk": "^2.12.0",
-        "@nostrum/ndk-adapters": "workspace:*",
-        "@nostrum/server": "workspace:*",
+        "@nostr-tun/ndk-adapters": "workspace:*",
+        "@nostr-tun/server": "workspace:*",
         "hono": "^4.6.0",
       },
     },
     "packages/core": {
-      "name": "@nostrum/core",
+      "name": "@nostr-tun/core",
       "version": "0.0.0",
     },
     "packages/ndk-adapters": {
-      "name": "@nostrum/ndk-adapters",
+      "name": "@nostr-tun/ndk-adapters",
       "version": "0.0.0",
       "dependencies": {
         "@nostr-dev-kit/ndk": "^2.12.0",
-        "@nostrum/client": "workspace:*",
-        "@nostrum/core": "workspace:*",
-        "@nostrum/server": "workspace:*",
+        "@nostr-tun/client": "workspace:*",
+        "@nostr-tun/core": "workspace:*",
+        "@nostr-tun/server": "workspace:*",
       },
     },
     "packages/nostr-tools-adapters": {
-      "name": "@nostrum/nostr-tools-adapters",
+      "name": "@nostr-tun/nostr-tools-adapters",
       "version": "0.0.0",
       "dependencies": {
-        "@nostrum/client": "workspace:*",
-        "@nostrum/core": "workspace:*",
-        "@nostrum/server": "workspace:*",
+        "@nostr-tun/client": "workspace:*",
+        "@nostr-tun/core": "workspace:*",
+        "@nostr-tun/server": "workspace:*",
         "nostr-tools": "^2.10.0",
       },
     },
     "packages/server": {
-      "name": "@nostrum/server",
+      "name": "@nostr-tun/server",
       "version": "0.0.0",
       "dependencies": {
-        "@nostrum/core": "workspace:*",
+        "@nostr-tun/core": "workspace:*",
         "hono": "^4.6.0",
       },
       "devDependencies": {
         "@nostr-dev-kit/ndk": "^2.12.0",
-        "@nostrum/ndk-adapters": "workspace:*",
+        "@nostr-tun/ndk-adapters": "workspace:*",
       },
     },
   },
@@ -81,15 +81,15 @@
 
     "@nostr-dev-kit/ndk": ["@nostr-dev-kit/ndk@2.18.1", "", { "dependencies": { "@codesandbox/sandpack-client": "^2.19.8", "@noble/curves": "^1.6.0", "@noble/hashes": "^1.5.0", "@noble/secp256k1": "^2.1.0", "@scure/base": "^1.1.9", "debug": "^4.3.7", "light-bolt11-decoder": "^3.2.0", "shiki": "^3.13.0", "tseep": "^1.3.1", "typescript-lru-cache": "^2.0.0" }, "peerDependencies": { "nostr-tools": "^2.17.0" } }, "sha512-LTXXheGfmyN1y8x+8v/Dmkx8YX7LqaoVk0DTSaigETB5RZsxw7dLBKK++kZd4DVIxtj0tRfmSOsTr1E+M4653Q=="],
 
-    "@nostrum/client": ["@nostrum/client@workspace:packages/client"],
+    "@nostr-tun/client": ["@nostr-tun/client@workspace:packages/client"],
 
-    "@nostrum/core": ["@nostrum/core@workspace:packages/core"],
+    "@nostr-tun/core": ["@nostr-tun/core@workspace:packages/core"],
 
-    "@nostrum/ndk-adapters": ["@nostrum/ndk-adapters@workspace:packages/ndk-adapters"],
+    "@nostr-tun/ndk-adapters": ["@nostr-tun/ndk-adapters@workspace:packages/ndk-adapters"],
 
-    "@nostrum/nostr-tools-adapters": ["@nostrum/nostr-tools-adapters@workspace:packages/nostr-tools-adapters"],
+    "@nostr-tun/nostr-tools-adapters": ["@nostr-tun/nostr-tools-adapters@workspace:packages/nostr-tools-adapters"],
 
-    "@nostrum/server": ["@nostrum/server@workspace:packages/server"],
+    "@nostr-tun/server": ["@nostr-tun/server@workspace:packages/server"],
 
     "@open-draft/deferred-promise": ["@open-draft/deferred-promise@2.2.0", "", {}, "sha512-CecwLWx3rhxVQF6V4bAgPS5t+So2sTbPgAzafKkVizyi7tlwpcFpdFqq+wqF2OwNBmqFuu6tOyouTuxgpMfzmA=="],
 

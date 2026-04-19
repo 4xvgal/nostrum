@@ -3,11 +3,11 @@ import type {
   CryptoPort,
   NostrResponse,
   ServerInfo,
-} from '@nostrum/core'
-import { KINDS_NIP80 } from '@nostrum/core'
+} from '@nostr-tun/core'
+import { KINDS_NIP80 } from '@nostr-tun/core'
 import type { TransportPort } from '../ports/transport.port.js'
 import type { DiscoveryPort } from '../ports/discovery.port.js'
-import { NostrumClient } from './nostrum-client.js'
+import { NostrTunClient } from './nostr-tun-client.js'
 
 function stubCrypto(): CryptoPort {
   return {
@@ -33,7 +33,7 @@ class RecordingTransport implements TransportPort {
   async disconnect(): Promise<void> {}
 }
 
-function makeManifestResponse(kindSet: 'nostrum' | 'nip80' | object): Response {
+function makeManifestResponse(kindSet: 'nostr-tun' | 'nip80' | object): Response {
   const body = {
     version: '0.1',
     pubkey: 'learned-pk',
@@ -50,7 +50,7 @@ function makeManifestResponse(kindSet: 'nostrum' | 'nip80' | object): Response {
 
 type FetchArgs = [input: string, init?: RequestInit]
 
-describe('NostrumClient resolution order', () => {
+describe('NostrTunClient resolution order', () => {
   let originalFetch: typeof globalThis.fetch
   let fetchCalls: FetchArgs[]
   let responder: (url: string) => Response
@@ -71,7 +71,7 @@ describe('NostrumClient resolution order', () => {
 
   test('pinned origin bypasses cache/discovery and goes to Nostr', async () => {
     const transport = new RecordingTransport()
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 })
       .useTransport(transport)
       .useCrypto(stubCrypto())
       .pin('https://a.test', { pubkey: 'pinned-pk', relays: [] })
@@ -84,16 +84,16 @@ describe('NostrumClient resolution order', () => {
     await c.disconnect()
   })
 
-  test('learnFromAdvertisement: false — Nostrum-Location header ignored', async () => {
+  test('learnFromAdvertisement: false — Nostr-Tun-Location header ignored', async () => {
     responder = () =>
       new Response('ok', {
         status: 200,
         headers: {
-          'Nostrum-Location': 'pubkey=learned; relays=wss://r.example; ma=300',
+          'Nostr-Tun-Location': 'pubkey=learned; relays=wss://r.example; ma=300',
         },
       })
 
-    const c = new NostrumClient({
+    const c = new NostrTunClient({
       secretKey: 'sk',
       ttl: 60,
       learnFromAdvertisement: false,
@@ -109,19 +109,19 @@ describe('NostrumClient resolution order', () => {
 
   test('manifest miss marks (method, path) disabled for subsequent calls', async () => {
     responder = (url) => {
-      if (url.endsWith('/.well-known/nostrum.json')) {
-        return makeManifestResponse('nostrum')
+      if (url.endsWith('/.well-known/nostr-tun.json')) {
+        return makeManifestResponse('nostr-tun')
       }
       return new Response('ok', {
         status: 200,
         headers: {
-          'Nostrum-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
+          'Nostr-Tun-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
         },
       })
     }
 
     const transport = new RecordingTransport()
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 })
       .useTransport(transport)
       .useCrypto(stubCrypto())
 
@@ -141,19 +141,19 @@ describe('NostrumClient resolution order', () => {
 
   test('manifest hit + kindSet compatible → Nostr path', async () => {
     responder = (url) => {
-      if (url.endsWith('/.well-known/nostrum.json')) {
-        return makeManifestResponse('nostrum')
+      if (url.endsWith('/.well-known/nostr-tun.json')) {
+        return makeManifestResponse('nostr-tun')
       }
       return new Response('ok', {
         status: 200,
         headers: {
-          'Nostrum-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
+          'Nostr-Tun-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
         },
       })
     }
 
     const transport = new RecordingTransport()
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 })
       .useTransport(transport)
       .useCrypto(stubCrypto())
 
@@ -168,20 +168,20 @@ describe('NostrumClient resolution order', () => {
 
   test('kindSet mismatch → HTTPS fallback', async () => {
     responder = (url) => {
-      if (url.endsWith('/.well-known/nostrum.json')) {
+      if (url.endsWith('/.well-known/nostr-tun.json')) {
         return makeManifestResponse('nip80')
       }
       return new Response('ok', {
         status: 200,
         headers: {
-          'Nostrum-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
+          'Nostr-Tun-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
         },
       })
     }
 
     const transport = new RecordingTransport()
-    // Client configured for KINDS_NOSTRUM (default), server declares nip80.
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 })
+    // Client configured for KINDS_NOSTR_TUN (default), server declares nip80.
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 })
       .useTransport(transport)
       .useCrypto(stubCrypto())
 
@@ -194,19 +194,19 @@ describe('NostrumClient resolution order', () => {
 
   test('kindSet nip80 matches when client configured with KINDS_NIP80', async () => {
     responder = (url) => {
-      if (url.endsWith('/.well-known/nostrum.json')) {
+      if (url.endsWith('/.well-known/nostr-tun.json')) {
         return makeManifestResponse('nip80')
       }
       return new Response('ok', {
         status: 200,
         headers: {
-          'Nostrum-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
+          'Nostr-Tun-Location': 'pubkey=pk; relays=wss://r.example; ma=300',
         },
       })
     }
 
     const transport = new RecordingTransport()
-    const c = new NostrumClient({
+    const c = new NostrTunClient({
       secretKey: 'sk',
       ttl: 60,
       kinds: KINDS_NIP80,
@@ -233,7 +233,7 @@ describe('NostrumClient resolution order', () => {
         return null
       },
     }
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 })
       .useTransport(transport)
       .useCrypto(stubCrypto())
       .useDiscovery(discovery)
@@ -247,6 +247,6 @@ describe('NostrumClient resolution order', () => {
     await c.disconnect()
   })
 
-  // Silence unused import warning — NostrResponse re-exported via NostrumClient internals.
+  // Silence unused import warning — NostrResponse re-exported via NostrTunClient internals.
   void ({} as NostrResponse)
 })

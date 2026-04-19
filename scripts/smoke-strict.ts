@@ -2,7 +2,7 @@
 /**
  * (C) strictNostr smoke test.
  *
- * Unpinned origin + strictNostr:true → must throw NostrumStrictError
+ * Unpinned origin + strictNostr:true → must throw NostrTunStrictError
  * (no HTTPS bootstrap leak).
  */
 import { ORIGIN, setupEnv } from './lib/setup.js'
@@ -14,7 +14,7 @@ function log(step: string, ...rest: unknown[]): void {
 async function main(): Promise<void> {
   const env = await setupEnv({ ttl: 30, strictNostr: true })
 
-  log('strict=true, no pin → expect NostrumStrictError')
+  log('strict=true, no pin → expect NostrTunStrictError')
   let threw = false
   let errName = ''
   try {
@@ -28,7 +28,7 @@ async function main(): Promise<void> {
     log('caught', errName, e instanceof Error ? e.message : '')
   }
 
-  const ok = threw && errName === 'NostrumStrictError' && env.transports.length === 0
+  const ok = threw && errName === 'NostrTunStrictError' && env.transports.length === 0
 
   await env.shutdown()
   if (!ok) {

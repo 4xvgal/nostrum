@@ -4,12 +4,12 @@ import type {
   NostrRequest,
   NostrResponse,
   ServerInfo,
-} from '@nostrum/core'
-import { KINDS_NIP80, KINDS_NOSTRUM } from '@nostrum/core'
+} from '@nostr-tun/core'
+import { KINDS_NIP80, KINDS_NOSTR_TUN } from '@nostr-tun/core'
 import type { TransportPort } from '../ports/transport.port.js'
 import type { DiscoveryPort } from '../ports/discovery.port.js'
 
-export type NostrumClientConfig = {
+export type NostrTunClientConfig = {
   secretKey: string
   ttl: number
   learnFromAdvertisement?: boolean
@@ -17,8 +17,8 @@ export type NostrumClientConfig = {
   strictNostr?: boolean
 }
 
-export type NostrumRequestInit = RequestInit & {
-  nostrumStrict?: boolean
+export type NostrTunRequestInit = RequestInit & {
+  nostrTunStrict?: boolean
 }
 
 type Pending = {
@@ -26,7 +26,7 @@ type Pending = {
   reject: (e: Error) => void
   timer: ReturnType<typeof setTimeout>
   url: string
-  init: NostrumRequestInit | undefined
+  init: NostrTunRequestInit | undefined
   origin: string
   method: string
   pathname: string
@@ -41,7 +41,7 @@ type Manifest = {
   relays: string[]
   ttl: number
   capabilities: {
-    kindSet: 'nostrum' | 'nip80' | KindSet
+    kindSet: 'nostr-tun' | 'nip80' | KindSet
     chunking: boolean
   }
   routes: Array<{
@@ -57,7 +57,7 @@ type OriginCacheEntry = {
   manifest: Manifest | null
   expiresAt: number
   disabledPaths: Set<string>
-  notNostrum?: boolean
+  notNostrTun?: boolean
 }
 
 type ResolveTarget =
@@ -65,7 +65,7 @@ type ResolveTarget =
   | { kind: 'https' }
   | { kind: 'https-and-learn' }
 
-export class NostrumClient {
+export class NostrTunClient {
   #transport: TransportPort | null = null
   #crypto: CryptoPort | null = null
   #discovery: DiscoveryPort | null = null
@@ -77,7 +77,7 @@ export class NostrumClient {
   #sweepTimer: ReturnType<typeof setInterval> | null = null
   #connected = false
 
-  constructor(private readonly config: NostrumClientConfig) {}
+  constructor(private readonly config: NostrTunClientConfig) {}
 
   useTransport(adapter: TransportPort): this {
     this.#transport = adapter
@@ -101,10 +101,10 @@ export class NostrumClient {
 
   async fetch(
     url: string,
-    init?: NostrumRequestInit,
+    init?: NostrTunRequestInit,
   ): Promise<Response> {
     if (!this.#transport || !this.#crypto) {
-      throw new Error('NostrumClient: useTransport/useCrypto are required')
+      throw new Error('NostrTunClient: useTransport/useCrypto are required')
     }
     const u = new URL(url)
     const method = (init?.method ?? 'GET').toUpperCase()
@@ -121,9 +121,9 @@ export class NostrumClient {
     }
   }
 
-  #isStrict(init?: NostrumRequestInit): boolean {
-    if (init?.nostrumStrict === true) return true
-    if (init?.nostrumStrict === false) return false
+  #isStrict(init?: NostrTunRequestInit): boolean {
+    if (init?.nostrTunStrict === true) return true
+    if (init?.nostrTunStrict === false) return false
     return this.config.strictNostr === true
   }
 
@@ -134,7 +134,7 @@ export class NostrumClient {
     }
     for (const [, p] of this.#pending) {
       clearTimeout(p.timer)
-      p.reject(new Error('NostrumClient disconnected'))
+      p.reject(new Error('NostrTunClient disconnected'))
     }
     this.#pending.clear()
     this.#pendingByWrapId.clear()
@@ -153,8 +153,8 @@ export class NostrumClient {
     const entry = this.#cache.get(u.origin)
     const now = Math.floor(Date.now() / 1000)
     if (entry && entry.expiresAt > now) {
-      if (entry.notNostrum) {
-        if (strict) throw strictErr(`origin ${u.origin} is not Nostrum-aware`)
+      if (entry.notNostrTun) {
+        if (strict) throw strictErr(`origin ${u.origin} is not NostrTun-aware`)
         return { kind: 'https' }
       }
       const pathKey = `${method} ${u.pathname}`
@@ -208,7 +208,7 @@ export class NostrumClient {
     url: string,
     u: URL,
     method: string,
-    init: NostrumRequestInit | undefined,
+    init: NostrTunRequestInit | undefined,
     info: ServerInfo,
     strict: boolean,
   ): Promise<Response> {
@@ -240,7 +240,7 @@ export class NostrumClient {
         this.#pending.delete(id)
         if (wrapId) this.#pendingByWrapId.delete(wrapId)
         const err = new Error(
-          `NostrumClient fetch timeout after ${this.config.ttl}s`,
+          `NostrTunClient fetch timeout after ${this.config.ttl}s`,
         )
         err.name = 'TimeoutError'
         reject(err)
@@ -273,8 +273,8 @@ export class NostrumClient {
     if (this.config.learnFromAdvertisement === false) return res
     const now = Math.floor(Date.now() / 1000)
     const origin = new URL(url).origin
-    const header = res.headers.get('Nostrum-Location')
-    const parsed = header ? parseNostrumLocation(header) : null
+    const header = res.headers.get('Nostr-Tun-Location')
+    const parsed = header ? parseNostrTunLocation(header) : null
     if (!parsed) {
       this.#cache.set(origin, {
         pubkey: '',
@@ -282,7 +282,7 @@ export class NostrumClient {
         manifest: null,
         expiresAt: now + 300,
         disabledPaths: new Set(),
-        notNostrum: true,
+        notNostrTun: true,
       })
       return res
     }
@@ -302,7 +302,7 @@ export class NostrumClient {
     if (existing) return existing
     const p = (async () => {
       try {
-        const r = await globalThis.fetch(`${origin}/.well-known/nostrum.json`)
+        const r = await globalThis.fetch(`${origin}/.well-known/nostr-tun.json`)
         if (!r.ok) return null
         const m = (await r.json()) as Manifest
         const entry = this.#cache.get(origin)
@@ -319,7 +319,7 @@ export class NostrumClient {
   }
 
   #configKinds(): KindSet {
-    return this.config.kinds ?? KINDS_NOSTRUM
+    return this.config.kinds ?? KINDS_NOSTR_TUN
   }
 
   async #ensureConnected(): Promise<void> {
@@ -345,7 +345,7 @@ export class NostrumClient {
     clearTimeout(p.timer)
     this.#pending.delete(reqId)
     this.#pendingByWrapId.delete(wrapId)
-    const err = new Error(`NostrumClient publish rejected: ${reason}`)
+    const err = new Error(`NostrTunClient publish rejected: ${reason}`)
     err.name = 'PublishRejectedError'
     p.reject(err)
   }
@@ -358,7 +358,7 @@ export class NostrumClient {
         this.#pending.delete(id)
         if (p.wrapId) this.#pendingByWrapId.delete(p.wrapId)
         const err = new Error(
-          'NostrumClient fetch timeout (pending entry swept)',
+          'NostrTunClient fetch timeout (pending entry swept)',
         )
         err.name = 'TimeoutError'
         p.reject(err)
@@ -378,7 +378,7 @@ export class NostrumClient {
 
       if (
         res.status === 501 &&
-        res.headers['x-nostrum-error'] === 'route-not-enabled'
+        res.headers['x-nostr-tun-error'] === 'route-not-enabled'
       ) {
         clearTimeout(p.timer)
         this.#pending.delete(res.id)
@@ -461,7 +461,7 @@ async function bodyFromInit(init?: RequestInit): Promise<Uint8Array | null> {
     return new Uint8Array(b.buffer, b.byteOffset, b.byteLength)
   }
   throw new TypeError(
-    'NostrumClient: unsupported body type; v0 supports string/ArrayBuffer/Uint8Array/null',
+    'NostrTunClient: unsupported body type; v0 supports string/ArrayBuffer/Uint8Array/null',
   )
 }
 
@@ -472,7 +472,7 @@ function toWebResponse(res: NostrResponse): Response {
   })
 }
 
-function parseNostrumLocation(
+function parseNostrTunLocation(
   header: string,
 ): { pubkey: string; relays: string[]; ma?: number } | null {
   const parts = header.split(';').map((s) => s.trim()).filter(Boolean)
@@ -525,7 +525,7 @@ function matchPath(pattern: string, path: string): boolean {
 
 function kindSetCompatible(manifest: Manifest, clientKinds: KindSet): boolean {
   const declared = manifest.capabilities.kindSet
-  if (declared === 'nostrum') return sameKindSet(clientKinds, KINDS_NOSTRUM)
+  if (declared === 'nostr-tun') return sameKindSet(clientKinds, KINDS_NOSTR_TUN)
   if (declared === 'nip80') return sameKindSet(clientKinds, KINDS_NIP80)
   if (typeof declared === 'object' && declared !== null) {
     return sameKindSet(clientKinds, declared)
@@ -534,8 +534,8 @@ function kindSetCompatible(manifest: Manifest, clientKinds: KindSet): boolean {
 }
 
 function strictErr(message: string): Error {
-  const err = new Error(`NostrumStrictError: ${message}`)
-  err.name = 'NostrumStrictError'
+  const err = new Error(`NostrTunStrictError: ${message}`)
+  err.name = 'NostrTunStrictError'
   return err
 }
 

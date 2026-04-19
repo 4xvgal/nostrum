@@ -1,19 +1,19 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
 import {
   KINDS_NIP80,
-  KINDS_NOSTRUM,
+  KINDS_NOSTR_TUN,
   type KindSet,
-} from '@nostrum/core'
+} from '@nostr-tun/core'
 import {
   HonoAdapter,
   InMemoryStorageAdapter,
-  Nostrum,
+  NostrTun,
   type RelayPort,
-} from '@nostrum/server'
-import { NostrumClient } from './app/nostrum-client.js'
+} from '@nostr-tun/server'
+import { NostrTunClient } from './app/nostr-tun-client.js'
 import type { TransportPort } from './ports/transport.port.js'
 
 class InMemoryHub {
@@ -78,8 +78,8 @@ class HubClientTransport implements TransportPort {
   }
 }
 
-for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
-  describe(`NostrumClient ↔ Nostrum e2e (wrap=${kinds.wrap})`, () => {
+for (const kinds of [KINDS_NOSTR_TUN, KINDS_NIP80] satisfies KindSet[]) {
+  describe(`NostrTunClient ↔ NostrTun e2e (wrap=${kinds.wrap})`, () => {
     const ndk = new NDK()
     ndk.explicitRelayUrls = []
     const crypto = new NdkCryptoAdapter(ndk, kinds)
@@ -89,8 +89,8 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
     let serverSk: string
     let serverPk: string
     let hub: InMemoryHub
-    let server: Nostrum
-    let client: NostrumClient
+    let server: NostrTun
+    let client: NostrTunClient
     let echoCalls = 0
 
     beforeAll(async () => {
@@ -104,7 +104,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
       hub = new InMemoryHub()
 
       const app = new Hono()
-      server = new Nostrum({
+      server = new NostrTun({
         relays: [],
         secretKey: serverSk,
         ttl: 60,
@@ -121,13 +121,13 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
         const body = await c.req.text()
         return c.json({
           echoed: body,
-          principal: c.req.header('x-nostrum-principal'),
+          principal: c.req.header('x-nostr-tun-principal'),
         })
       })
 
       await server.connect()
 
-      client = new NostrumClient({ secretKey: clientSk, ttl: 60 })
+      client = new NostrTunClient({ secretKey: clientSk, ttl: 60 })
         .useTransport(new HubClientTransport(hub, clientPk))
         .useCrypto(crypto)
         .pin('https://srv.test', { pubkey: serverPk, relays: [] })
@@ -156,7 +156,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
 
     test('criterion 3 — TTL timeout rejects and clears pending', async () => {
       const voidHub = new InMemoryHub()
-      const sinkClient = new NostrumClient({
+      const sinkClient = new NostrTunClient({
         secretKey: clientSk,
         ttl: 1,
       })

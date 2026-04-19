@@ -1,5 +1,5 @@
-import { KINDS_NOSTRUM, type KindSet } from '@nostrum/core'
-import type { TransportPort } from '@nostrum/client'
+import { KINDS_NOSTR_TUN, type KindSet } from '@nostr-tun/core'
+import type { TransportPort } from '@nostr-tun/client'
 import { WsClient } from './ws-client.js'
 
 export class NostrToolsTransportAdapter implements TransportPort {
@@ -9,7 +9,7 @@ export class NostrToolsTransportAdapter implements TransportPort {
   constructor(
     private readonly relayUrl: string,
     private readonly clientPubkey: string,
-    private readonly kinds: KindSet = KINDS_NOSTRUM,
+    private readonly kinds: KindSet = KINDS_NOSTR_TUN,
   ) {
     this.#ws = new WsClient(this.relayUrl)
   }

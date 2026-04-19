@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { NostrRequest } from '@nostrum/core'
+import type { NostrRequest } from '@nostr-tun/core'
 import { CorrelationManager } from './correlation-manager.js'
 import { InMemoryStorageAdapter } from './adapters/storage/in-memory.adapter.js'
 

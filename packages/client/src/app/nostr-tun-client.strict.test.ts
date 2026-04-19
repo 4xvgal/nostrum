@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
-import { KINDS_NOSTRUM } from '@nostrum/core'
-import type { CryptoPort } from '@nostrum/core'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
+import { KINDS_NOSTR_TUN } from '@nostr-tun/core'
+import type { CryptoPort } from '@nostr-tun/core'
 import type { TransportPort } from '../ports/transport.port.js'
-import { NostrumClient } from './nostrum-client.js'
+import { NostrTunClient } from './nostr-tun-client.js'
 
 function stubCrypto(): CryptoPort {
   return {
@@ -45,7 +45,7 @@ class BridgeTransport implements TransportPort {
   }
 }
 
-describe('NostrumClient strictNostr (global)', () => {
+describe('NostrTunClient strictNostr (global)', () => {
   let originalFetch: typeof globalThis.fetch
   let fetchCalls: string[]
 
@@ -63,12 +63,12 @@ describe('NostrumClient strictNostr (global)', () => {
   })
 
   test('unpinned origin throws (no HTTPS bootstrap leak)', async () => {
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60, strictNostr: true })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60, strictNostr: true })
       .useTransport(stubTransport())
       .useCrypto(stubCrypto())
 
     await expect(c.fetch('https://unknown.test/x')).rejects.toThrow(
-      /NostrumStrictError/,
+      /NostrTunStrictError/,
     )
     // Critical: globalThis.fetch must NOT have been called.
     expect(fetchCalls.length).toBe(0)
@@ -77,7 +77,7 @@ describe('NostrumClient strictNostr (global)', () => {
   test('501 response throws, no transparent HTTPS retry', async () => {
     const ndk = new NDK()
     ndk.explicitRelayUrls = []
-    const crypto = new NdkCryptoAdapter(ndk, KINDS_NOSTRUM)
+    const crypto = new NdkCryptoAdapter(ndk, KINDS_NOSTR_TUN)
 
     const clientSigner = NDKPrivateKeySigner.generate()
     const serverSigner = NDKPrivateKeySigner.generate()
@@ -87,7 +87,7 @@ describe('NostrumClient strictNostr (global)', () => {
     const serverPk = serverSigner.pubkey
 
     const transport = new BridgeTransport()
-    const client = new NostrumClient({
+    const client = new NostrTunClient({
       secretKey: clientSk,
       ttl: 60,
       strictNostr: true,
@@ -103,7 +103,7 @@ describe('NostrumClient strictNostr (global)', () => {
       {
         id: req!.id,
         status: 501,
-        headers: { 'x-nostrum-error': 'route-not-enabled' },
+        headers: { 'x-nostr-tun-error': 'route-not-enabled' },
         body: null,
       },
       clientPk,
@@ -112,13 +112,13 @@ describe('NostrumClient strictNostr (global)', () => {
     )
     transport.inject(wrapped501)
 
-    await expect(pending).rejects.toThrow(/NostrumStrictError/)
+    await expect(pending).rejects.toThrow(/NostrTunStrictError/)
     expect(fetchCalls.length).toBe(0) // no HTTPS retry leaked
     await client.disconnect()
   })
 })
 
-describe('NostrumClient strictNostr (per-fetch override)', () => {
+describe('NostrTunClient strictNostr (per-fetch override)', () => {
   let originalFetch: typeof globalThis.fetch
   let fetchCalls: string[]
 
@@ -135,8 +135,8 @@ describe('NostrumClient strictNostr (per-fetch override)', () => {
     globalThis.fetch = originalFetch
   })
 
-  test('per-fetch nostrumStrict:true overrides global false', async () => {
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 }) // strict=false default
+  test('per-fetch nostrTunStrict:true overrides global false', async () => {
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 }) // strict=false default
       .useTransport(stubTransport())
       .useCrypto(stubCrypto())
 
@@ -144,14 +144,14 @@ describe('NostrumClient strictNostr (per-fetch override)', () => {
     await c.fetch('https://a.test/x')
     expect(fetchCalls.length).toBe(1)
 
-    // Strict call to same origin (cached as notNostrum): should throw.
+    // Strict call to same origin (cached as notNostrTun): should throw.
     await expect(
-      c.fetch('https://a.test/y', { nostrumStrict: true }),
-    ).rejects.toThrow(/NostrumStrictError/)
+      c.fetch('https://a.test/y', { nostrTunStrict: true }),
+    ).rejects.toThrow(/NostrTunStrictError/)
   })
 
-  test('per-fetch nostrumStrict:false overrides global true', async () => {
-    const c = new NostrumClient({
+  test('per-fetch nostrTunStrict:false overrides global true', async () => {
+    const c = new NostrTunClient({
       secretKey: 'sk',
       ttl: 60,
       strictNostr: true,
@@ -159,8 +159,8 @@ describe('NostrumClient strictNostr (per-fetch override)', () => {
       .useTransport(stubTransport())
       .useCrypto(stubCrypto())
 
-    // Global strict → would throw. Override with nostrumStrict:false → allows HTTPS.
-    const res = await c.fetch('https://a.test/x', { nostrumStrict: false })
+    // Global strict → would throw. Override with nostrTunStrict:false → allows HTTPS.
+    const res = await c.fetch('https://a.test/x', { nostrTunStrict: false })
     expect(res.status).toBe(200)
     expect(fetchCalls.length).toBe(1)
   })

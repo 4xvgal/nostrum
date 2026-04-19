@@ -1,4 +1,4 @@
-export { Nostrum, type NostrumConfig } from './app/nostrum.js'
+export { NostrTun, type NostrTunConfig } from './app/nostr-tun.js'
 export type { StoragePort, CorrelationEntry } from './ports/storage.port.js'
 export type { RelayPort } from './ports/relay.port.js'
 export type { HttpPort } from './ports/http.port.js'

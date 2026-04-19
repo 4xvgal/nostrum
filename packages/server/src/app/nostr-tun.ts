@@ -1,12 +1,12 @@
 import type { Handler, Hono, MiddlewareHandler } from 'hono'
-import type { CryptoPort, KindSet } from '@nostrum/core'
-import { KINDS_NIP80, KINDS_NOSTRUM } from '@nostrum/core'
+import type { CryptoPort, KindSet } from '@nostr-tun/core'
+import { KINDS_NIP80, KINDS_NOSTR_TUN } from '@nostr-tun/core'
 import type { RelayPort } from '../ports/relay.port.js'
 import type { StoragePort } from '../ports/storage.port.js'
 import type { HttpPort } from '../ports/http.port.js'
 import { CorrelationManager } from '../correlation-manager.js'
 
-export type NostrumConfig = {
+export type NostrTunConfig = {
   relays: string[]
   secretKey: string
   ttl: number
@@ -21,7 +21,7 @@ type Manifest = {
   relays: string[]
   ttl: number
   capabilities: {
-    kindSet: 'nostrum' | 'nip80' | KindSet
+    kindSet: 'nostr-tun' | 'nip80' | KindSet
     chunking: boolean
   }
   routes: Array<{
@@ -31,11 +31,11 @@ type Manifest = {
   }>
 }
 
-const ROUTE_MARKER = Symbol.for('@nostrum/route')
+const ROUTE_MARKER = Symbol.for('@nostr-tun/route')
 
 type MarkedMiddleware = MiddlewareHandler & { [ROUTE_MARKER]?: true }
 
-export class Nostrum {
+export class NostrTun {
   #relay: RelayPort | null = null
   #crypto: CryptoPort | null = null
   #storage: StoragePort | null = null
@@ -44,7 +44,7 @@ export class Nostrum {
   #app: Hono | null = null
   #evictionTimer: ReturnType<typeof setInterval> | null = null
 
-  constructor(private readonly config: NostrumConfig) {}
+  constructor(private readonly config: NostrTunConfig) {}
 
   useRelay(a: RelayPort): this {
     this.#relay = a
@@ -73,15 +73,15 @@ export class Nostrum {
       let fromNostr = false
       try {
         const ctx = c.executionCtx as unknown as
-          | { nostrumDispatch?: boolean }
+          | { nostrTunDispatch?: boolean }
           | undefined
-        fromNostr = ctx?.nostrumDispatch === true
+        fromNostr = ctx?.nostrTunDispatch === true
       } catch {
         // No executionCtx provided — this is plain HTTP.
       }
       if (!fromNostr) {
         try {
-          c.req.raw.headers.delete('x-nostrum-principal')
+          c.req.raw.headers.delete('x-nostr-tun-principal')
         } catch {
           // forbidden-header or locked Headers — best-effort
         }
@@ -97,7 +97,7 @@ export class Nostrum {
     const header = `pubkey=${this.config.pubkey}; relays=${this.config.relays.join(',')}; ma=${ma}`
     return async (c, next) => {
       await next()
-      c.header('Nostrum-Location', header)
+      c.header('Nostr-Tun-Location', header)
     }
   }
 
@@ -112,7 +112,7 @@ export class Nostrum {
   }
 
   #buildManifest(): Manifest {
-    const kinds = this.config.kinds ?? KINDS_NOSTRUM
+    const kinds = this.config.kinds ?? KINDS_NOSTR_TUN
     const ma = this.config.advertiseTtl ?? 300
     const markedPairs = new Set<string>()
     const app = this.#app
@@ -147,7 +147,7 @@ export class Nostrum {
   async connect(): Promise<void> {
     if (!this.#relay || !this.#crypto || !this.#storage || !this.#http) {
       throw new Error(
-        'Nostrum: useRelay/useCrypto/useStorage/useHttp are all required before connect()',
+        'NostrTun: useRelay/useCrypto/useStorage/useHttp are all required before connect()',
       )
     }
     this.#correlation = new CorrelationManager(this.#storage)
@@ -187,11 +187,11 @@ export class Nostrum {
         ? await this.#app!.fetch(
             webReq,
             undefined,
-            { nostrumDispatch: true } as never,
+            { nostrTunDispatch: true } as never,
           )
         : new Response(null, {
             status: 501,
-            headers: { 'x-nostrum-error': 'route-not-enabled' },
+            headers: { 'x-nostr-tun-error': 'route-not-enabled' },
           })
 
       const nostrRes = await this.#http!.toNostrResponse(req.id, webRes)
@@ -238,8 +238,8 @@ function sameKindSet(a: KindSet, b: KindSet): boolean {
 
 function serializeKindSet(
   kinds: KindSet,
-): 'nostrum' | 'nip80' | KindSet {
-  if (sameKindSet(kinds, KINDS_NOSTRUM)) return 'nostrum'
+): 'nostr-tun' | 'nip80' | KindSet {
+  if (sameKindSet(kinds, KINDS_NOSTR_TUN)) return 'nostr-tun'
   if (sameKindSet(kinds, KINDS_NIP80)) return 'nip80'
   return kinds
 }

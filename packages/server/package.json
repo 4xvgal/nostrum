@@ -1,5 +1,5 @@
 {
-  "name": "@nostrum/server",
+  "name": "@nostr-tun/server",
   "version": "0.0.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -16,11 +16,11 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@nostrum/core": "workspace:*",
+    "@nostr-tun/core": "workspace:*",
     "hono": "^4.6.0"
   },
   "devDependencies": {
-    "@nostrum/ndk-adapters": "workspace:*",
+    "@nostr-tun/ndk-adapters": "workspace:*",
     "@nostr-dev-kit/ndk": "^2.12.0"
   }
 }

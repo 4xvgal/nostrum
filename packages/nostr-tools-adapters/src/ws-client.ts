@@ -21,7 +21,7 @@ export class WsClient {
 
   constructor(url: string) {
     this.#url = url
-    this.#subId = 'nostrum-' + Math.random().toString(36).slice(2, 10)
+    this.#subId = 'tunnel-' + Math.random().toString(36).slice(2, 10)
   }
 
   async connect(): Promise<void> {

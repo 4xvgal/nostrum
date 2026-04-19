@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import type { NostrRequest } from '@nostrum/core'
+import type { NostrRequest } from '@nostr-tun/core'
 import { HonoAdapter } from './hono.adapter.js'
 
 function makeReq(overrides: Partial<NostrRequest> = {}): NostrRequest {
@@ -18,19 +18,19 @@ function makeReq(overrides: Partial<NostrRequest> = {}): NostrRequest {
 describe('HonoAdapter', () => {
   const adapter = new HonoAdapter()
 
-  test('toRequest injects x-nostrum-principal header', () => {
+  test('toRequest injects x-nostr-tun-principal header', () => {
     const req = adapter.toRequest(makeReq())
-    expect(req.headers.get('x-nostrum-principal')).toBe('client-pk')
+    expect(req.headers.get('x-nostr-tun-principal')).toBe('client-pk')
   })
 
-  test('toRequest overwrites inbound x-nostrum-principal with trusted value', () => {
+  test('toRequest overwrites inbound x-nostr-tun-principal with trusted value', () => {
     const req = adapter.toRequest(
       makeReq({
-        headers: { 'x-nostrum-principal': 'spoofed-pk' },
+        headers: { 'x-nostr-tun-principal': 'spoofed-pk' },
         principal: 'trusted-pk',
       }),
     )
-    expect(req.headers.get('x-nostrum-principal')).toBe('trusted-pk')
+    expect(req.headers.get('x-nostr-tun-principal')).toBe('trusted-pk')
   })
 
   test('toRequest builds URL with correct path', () => {

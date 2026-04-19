@@ -4,9 +4,9 @@ import type {
   NostrRequest,
   NostrResponse,
   ServerInfo,
-} from '@nostrum/core'
+} from '@nostr-tun/core'
 import type { TransportPort } from '../ports/transport.port.js'
-import { NostrumClient } from './nostrum-client.js'
+import { NostrTunClient } from './nostr-tun-client.js'
 
 function stubCrypto(): CryptoPort {
   return {
@@ -31,9 +31,9 @@ function stubTransport(): TransportPort {
   }
 }
 
-describe('NostrumClient (unit)', () => {
+describe('NostrTunClient (unit)', () => {
   test('fetch throws when useTransport/useCrypto not set', async () => {
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 10 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 10 })
     await expect(c.fetch('https://a.test/x')).rejects.toThrow(
       /useTransport\/useCrypto/,
     )
@@ -47,7 +47,7 @@ describe('NostrumClient (unit)', () => {
       return new Response('ok', { status: 200 })
     }) as typeof globalThis.fetch
     try {
-      const c = new NostrumClient({ secretKey: 'sk', ttl: 10 })
+      const c = new NostrTunClient({ secretKey: 'sk', ttl: 10 })
         .useTransport(stubTransport())
         .useCrypto(stubCrypto())
       const res = await c.fetch('https://unpinned.test/x')
@@ -72,7 +72,7 @@ describe('NostrumClient (unit)', () => {
         return null
       },
     }
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 10 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 10 })
       .useTransport(stubTransport())
       .useCrypto(crypto)
       .pin('https://a.test', { pubkey: 'pk1', relays: [] })
@@ -100,7 +100,7 @@ describe('NostrumClient (unit)', () => {
         return null
       },
     }
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 })
       .useTransport(stubTransport())
       .useCrypto(crypto)
       .pin('https://a.test', { pubkey: 'pk', relays: [] })
@@ -139,7 +139,7 @@ describe('NostrumClient (unit)', () => {
         }
       },
     }
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 60 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 60 })
       .useTransport(transport)
       .useCrypto(crypto)
       .pin('https://a.test', { pubkey: 'pk', relays: [] })
@@ -157,7 +157,7 @@ describe('NostrumClient (unit)', () => {
   })
 
   test('unsupported body type throws TypeError', async () => {
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 10 })
+    const c = new NostrTunClient({ secretKey: 'sk', ttl: 10 })
       .useTransport(stubTransport())
       .useCrypto(stubCrypto())
       .pin('https://a.test', { pubkey: 'pk', relays: [] })

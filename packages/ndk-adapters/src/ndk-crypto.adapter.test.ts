@@ -2,11 +2,11 @@ import { beforeAll, describe, expect, test } from 'bun:test'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import {
   KINDS_NIP80,
-  KINDS_NOSTRUM,
+  KINDS_NOSTR_TUN,
   type KindSet,
   type NostrRequest,
   type NostrResponse,
-} from '@nostrum/core'
+} from '@nostr-tun/core'
 import { NdkCryptoAdapter } from './ndk-crypto.adapter.js'
 
 const BODY_TEXT = '{"a":1}'
@@ -34,7 +34,7 @@ function makeResponse(overrides: Partial<NostrResponse> = {}): NostrResponse {
   }
 }
 
-for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
+for (const kinds of [KINDS_NOSTR_TUN, KINDS_NIP80] satisfies KindSet[]) {
   describe(`NdkCryptoAdapter (wrap=${kinds.wrap})`, () => {
     const ndk = new NDK()
     ndk.explicitRelayUrls = []

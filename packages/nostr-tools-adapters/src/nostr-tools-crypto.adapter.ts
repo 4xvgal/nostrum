@@ -7,12 +7,12 @@ import {
 } from 'nostr-tools/pure'
 import { v2 as nip44 } from 'nostr-tools/nip44'
 import {
-  KINDS_NOSTRUM,
+  KINDS_NOSTR_TUN,
   type CryptoPort,
   type KindSet,
   type NostrRequest,
   type NostrResponse,
-} from '@nostrum/core'
+} from '@nostr-tun/core'
 import { decodeBody, encodeBody } from './body-codec.js'
 
 const SEAL_KIND = 13
@@ -38,7 +38,7 @@ type Rumor = {
 }
 
 export class NostrToolsCryptoAdapter implements CryptoPort {
-  constructor(private readonly kinds: KindSet = KINDS_NOSTRUM) {}
+  constructor(private readonly kinds: KindSet = KINDS_NOSTR_TUN) {}
 
   async wrap(
     payload: NostrRequest | NostrResponse,

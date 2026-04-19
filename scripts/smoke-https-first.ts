@@ -2,7 +2,7 @@
 /**
  * (B) HTTPS-first bootstrap smoke test.
  *
- * No pin. First call goes HTTP (learns Nostrum-Location), second call
+ * No pin. First call goes HTTP (learns Nostr-Tun-Location), second call
  * auto-switches to Nostr based on the manifest.
  */
 import { ORIGIN, setupEnv } from './lib/setup.js'

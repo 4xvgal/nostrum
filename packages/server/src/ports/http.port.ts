@@ -1,4 +1,4 @@
-import type { NostrRequest, NostrResponse } from '@nostrum/core'
+import type { NostrRequest, NostrResponse } from '@nostr-tun/core'
 
 export interface HttpPort {
   toRequest(req: NostrRequest): Request

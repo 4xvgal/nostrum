@@ -4,7 +4,7 @@ sequenceDiagram
     actor U as User code
 
     box rgba(200,220,255,0.3) Client
-      participant NC as NostrumClient
+      participant NC as NostrTunClient
       participant CD as DiscoveryPort<br/>(NIP05 / DnsTxt)
       participant CK as NdkCryptoAdapter
       participant CS as StoragePort
@@ -15,7 +15,7 @@ sequenceDiagram
 
     box rgba(255,225,200,0.3) Server
       participant SR as NdkRelayAdapter
-      participant NS as Nostrum
+      participant NS as NostrTun
       participant SK as NdkCryptoAdapter
       participant SS as StoragePort
       participant SH as HonoAdapter

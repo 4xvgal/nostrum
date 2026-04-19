@@ -1,6 +1,6 @@
-# Nostrum — Performance Analysis & Optimization Roadmap
+# NostrTun — Performance Analysis & Optimization Roadmap
 
-> Latency characterization of Nostrum's v0 stack and a concrete path for
+> Latency characterization of NostrTun's v0 stack and a concrete path for
 > future optimization. v0 is intentionally un-optimized; the hexagonal
 > boundary makes every item below swappable without touching the domain.
 
@@ -71,7 +71,7 @@ Largest expected win. NDK is built for long-running social-graph
 subscriptions (grouping, caching, profile resolution). None of that helps
 request/response RPC.
 
-- Ship a thin `@nostrum/nostr-tools-adapters` package that implements
+- Ship a thin `@nostr-tun/nostr-tools-adapters` package that implements
   `CryptoPort`, `RelayPort`, and `TransportPort` directly on top of
   `nostr-tools` primitives and a raw `WebSocket`.
 - Skip NDK's subscription grouping / coalescing — deliver the event to
@@ -81,10 +81,10 @@ request/response RPC.
 
 #### Update — measured
 
-Implemented as `@nostrum/nostr-tools-adapters`. `scripts/lib/setup.ts`
-selects adapters per port via `NOSTRUM_CRYPTO` / `NOSTRUM_RELAY` /
-`NOSTRUM_TRANSPORT` (each `ndk|nostr-tools`; default `ndk`), plus a
-convenience `NOSTRUM_ADAPTERS=nostr-tools` that sets all three.
+Implemented as `@nostr-tun/nostr-tools-adapters`. `scripts/lib/setup.ts`
+selects adapters per port via `NOSTR_TUN_CRYPTO` / `NOSTR_TUN_RELAY` /
+`NOSTR_TUN_TRANSPORT` (each `ndk|nostr-tools`; default `ndk`), plus a
+convenience `NOSTR_TUN_ADAPTERS=nostr-tools` that sets all three.
 
 Same local `nostr-rs-relay` in Docker, `N=100` iterations, same machine,
 same commit, same process lifetime. Mean / p50 / p95 of the Nostr column:
@@ -117,10 +117,10 @@ Reproduce:
 
 ```
 bun run bench                              # NDK baseline
-NOSTRUM_ADAPTERS=nostr-tools bun run bench # full swap
-NOSTRUM_CRYPTO=nostr-tools   bun run bench # attribute crypto
-NOSTRUM_RELAY=nostr-tools    bun run bench # attribute server-side WS
-NOSTRUM_TRANSPORT=nostr-tools bun run bench # attribute client-side WS
+NOSTR_TUN_ADAPTERS=nostr-tools bun run bench # full swap
+NOSTR_TUN_CRYPTO=nostr-tools   bun run bench # attribute crypto
+NOSTR_TUN_RELAY=nostr-tools    bun run bench # attribute server-side WS
+NOSTR_TUN_TRANSPORT=nostr-tools bun run bench # attribute client-side WS
 ```
 
 ### P2 — Relay signature-verification fast path
@@ -131,9 +131,9 @@ is just a protocol nicety).
 
 - Fork `nostr-rs-relay` (or contribute) to split the db-writer queue:
   ephemeral kinds (20000–29999) skip persistence and get fan-out first.
-- Optional dedicated filter for Nostrum kinds (1059, 21059, 21910/21911).
+- Optional dedicated filter for NostrTun kinds (1059, 21059, 21910/21911).
 - **Estimated savings: 100–200 ms**.
-- Out of Nostrum's code — operator-side change.
+- Out of NostrTun's code — operator-side change.
 
 ### P3 — Connection reuse / keep-alive tuning
 
@@ -192,12 +192,12 @@ drop below the underlying RTT.
 The hexagonal boundary means each priority above is a drop-in adapter
 swap:
 
-- P1 → new adapter package (alongside `@nostrum/ndk-adapters`), user
+- P1 → new adapter package (alongside `@nostr-tun/ndk-adapters`), user
   opts in via `useCrypto`/`useRelay`/`useTransport` at the composition
-  root. No changes to `@nostrum/core`, `@nostrum/server`,
-  `@nostrum/client`.
+  root. No changes to `@nostr-tun/core`, `@nostr-tun/server`,
+  `@nostr-tun/client`.
 - P2 → operator chooses the relay; no code change required on the
-  Nostrum side.
+  NostrTun side.
 - P3 → absorbed into P1's adapter implementation.
 - P4 → new crypto/session adapter + `KindSet` extension. Opt-in per
   origin or per call via a `transportMode` config field.

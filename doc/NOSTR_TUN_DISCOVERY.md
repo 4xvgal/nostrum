@@ -1,13 +1,13 @@
-# Nostrum — External Discovery Strategies
+# NostrTun — External Discovery Strategies
 
-> Companion document to **NOSTRUM_DESIGN.md**.
+> Companion document to **NOSTR_TUN_DESIGN.md**.
 > Catalogues *external lookup* adapters that plug into the
 > `DiscoveryPort` extension point. These resolve an origin's
 > `ServerInfo` (`{ pubkey, relays[] }`) **out-of-band** — independently
-> of the in-band Tor-style flow (`Nostrum-Location` header +
-> `/.well-known/nostrum.json` manifest) defined in the main spec.
+> of the in-band Tor-style flow (`Nostr-Tun-Location` header +
+> `/.well-known/nostr-tun.json` manifest) defined in the main spec.
 >
-> See NOSTRUM_DESIGN.md § *Discovery & Capability Advertisement* for the
+> See NOSTR_TUN_DESIGN.md § *Discovery & Capability Advertisement* for the
 > full discovery taxonomy and the in-band mechanism. This doc covers the
 > *external* tier only.
 
@@ -15,7 +15,7 @@
 
 ## When external discovery is worth it
 
-Nostrum's default is HTTPS-first in-band learning — every uncached origin
+NostrTun's default is HTTPS-first in-band learning — every uncached origin
 costs one plain HTTPS round-trip, after which subsequent calls go via
 Nostr. That covers most opt-in scenarios with zero extra infrastructure.
 
@@ -39,7 +39,7 @@ If none of these apply, the in-band flow is preferred.
 
 ## `DiscoveryPort` interface (recap)
 
-Defined in `@nostrum/client/src/ports/discovery.port.ts`:
+Defined in `@nostr-tun/client/src/ports/discovery.port.ts`:
 
 ```typescript
 interface DiscoveryPort {
@@ -49,9 +49,9 @@ interface DiscoveryPort {
 }
 ```
 
-`NostrumClient` consults the attached `DiscoveryPort` **after** its
+`NostrTunClient` consults the attached `DiscoveryPort` **after** its
 pinned-origin map and **before** falling back to plain HTTPS bootstrap.
-See NOSTRUM_DESIGN.md § *Per-call resolution order* for the full chain.
+See NOSTR_TUN_DESIGN.md § *Per-call resolution order* for the full chain.
 
 ---
 
@@ -78,7 +78,7 @@ GET https://<domain>/.well-known/nostr.json?name=_nostr
 }
 ```
 
-The reserved name `_nostr` is Nostrum's convention for the server's own
+The reserved name `_nostr` is NostrTun's convention for the server's own
 identity (distinct from per-user NIP-05 entries that would live under
 arbitrary user names). Operators add this alongside any existing NIP-05
 user records.
@@ -174,21 +174,21 @@ class CachingDiscoveryAdapter implements DiscoveryPort {
 
 ---
 
-## Composition with `NostrumClient`
+## Composition with `NostrTunClient`
 
 ```typescript
 import {
-  NostrumClient,
+  NostrTunClient,
   NdkTransportAdapter,
-} from '@nostrum/client'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
+} from '@nostr-tun/client'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
 import {
   NIP05Adapter,
   DnsTxtAdapter,
   CachingDiscoveryAdapter,
-} from '@nostrum/discovery'   // companion package — see "Package layout"
+} from '@nostr-tun/discovery'   // companion package — see "Package layout"
 
-const client = new NostrumClient({
+const client = new NostrTunClient({
   secretKey: clientSecretKey,
   ttl: 120,
 })
@@ -228,22 +228,22 @@ client.useDiscovery(
 )
 ```
 
-When the chain returns `null`, `NostrumClient` proceeds to its in-band
+When the chain returns `null`, `NostrTunClient` proceeds to its in-band
 HTTPS bootstrap — so external strategies are *additive*, not exclusive.
 
 ---
 
 ## Package layout
 
-These adapters do **not** live in `@nostrum/client`. That package only
+These adapters do **not** live in `@nostr-tun/client`. That package only
 ships the `DiscoveryPort` interface and the in-band flow. Two viable
 distribution shapes:
 
-- **Single companion package** `@nostrum/discovery` — bundles all three
+- **Single companion package** `@nostr-tun/discovery` — bundles all three
   adapters. Smallest dependency footprint for callers using more than
   one. Recommended starting shape for v0.
-- **One package per strategy** (`@nostrum/discovery-nip05`,
-  `@nostrum/discovery-dns`, …) — better tree-shaking and lets each
+- **One package per strategy** (`@nostr-tun/discovery-nip05`,
+  `@nostr-tun/discovery-dns`, …) — better tree-shaking and lets each
   package declare its own runtime-specific peer deps. Worth considering
   if `DnsTxtAdapter` ends up needing platform shims that NIP-05 doesn't.
 

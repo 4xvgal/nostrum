@@ -7,19 +7,19 @@ import {
 } from 'bun:test'
 import { Hono } from 'hono'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
 import {
   KINDS_NIP80,
-  KINDS_NOSTRUM,
+  KINDS_NOSTR_TUN,
   type KindSet,
-} from '@nostrum/core'
+} from '@nostr-tun/core'
 import {
   HonoAdapter,
   InMemoryStorageAdapter,
-  Nostrum,
+  NostrTun,
   type RelayPort,
-} from '@nostrum/server'
-import { NostrumClient } from './app/nostrum-client.js'
+} from '@nostr-tun/server'
+import { NostrTunClient } from './app/nostr-tun-client.js'
 import type { TransportPort } from './ports/transport.port.js'
 
 class InMemoryHub {
@@ -78,8 +78,8 @@ class HubClientTransport implements TransportPort {
   }
 }
 
-for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
-  describe(`NostrumClient HTTPS-first (wrap=${kinds.wrap})`, () => {
+for (const kinds of [KINDS_NOSTR_TUN, KINDS_NIP80] satisfies KindSet[]) {
+  describe(`NostrTunClient HTTPS-first (wrap=${kinds.wrap})`, () => {
     const ndk = new NDK()
     ndk.explicitRelayUrls = []
     const crypto = new NdkCryptoAdapter(ndk, kinds)
@@ -90,7 +90,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
     let serverPk: string
     let hub: InMemoryHub
     let app: Hono
-    let server: Nostrum
+    let server: NostrTun
     let echoCalls = 0
     let plainCalls = 0
     let originalFetch: typeof globalThis.fetch
@@ -105,7 +105,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
 
       hub = new InMemoryHub()
       app = new Hono()
-      server = new Nostrum({
+      server = new NostrTun({
         relays: ['wss://relay.test'],
         secretKey: serverSk,
         ttl: 60,
@@ -120,13 +120,13 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
         .attachApp(app)
 
       app.use('*', server.advertise())
-      app.get('/.well-known/nostrum.json', server.manifest())
+      app.get('/.well-known/nostr-tun.json', server.manifest())
       app.post('/v1/echo', server.route(), async (c) => {
         echoCalls++
         const body = await c.req.text()
         return c.json({
           echoed: body,
-          principal: c.req.header('x-nostrum-principal'),
+          principal: c.req.header('x-nostr-tun-principal'),
         })
       })
       // Plain HTTP only — no route() marker, not in manifest.
@@ -153,7 +153,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
 
     test('criterion 1 — unpinned origin: HTTPS first, then Nostr auto-switch', async () => {
       const beforeEcho = echoCalls
-      const client = new NostrumClient({
+      const client = new NostrTunClient({
         secretKey: clientSk,
         ttl: 60,
         kinds,
@@ -187,7 +187,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
 
     test('criterion 2 — path not in manifest goes to HTTPS and is marked disabled', async () => {
       const beforePlain = plainCalls
-      const client = new NostrumClient({
+      const client = new NostrTunClient({
         secretKey: clientSk,
         ttl: 60,
         kinds,
@@ -206,7 +206,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
 
     test('criterion 3 — learnFromAdvertisement: false keeps cache empty', async () => {
       const beforePlain = plainCalls
-      const client = new NostrumClient({
+      const client = new NostrTunClient({
         secretKey: clientSk,
         ttl: 60,
         kinds,
@@ -225,7 +225,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
 
     test('criterion 4 — manifest endpoint responds with Cache-Control', async () => {
       const res = await globalThis.fetch(
-        'https://srv.test/.well-known/nostrum.json',
+        'https://srv.test/.well-known/nostr-tun.json',
       )
       expect(res.headers.get('Cache-Control')).toMatch(
         /public, max-age=\d+/,
@@ -233,8 +233,8 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
       const body = (await res.json()) as {
         capabilities: { kindSet: string | object }
       }
-      if (kinds === KINDS_NOSTRUM) {
-        expect(body.capabilities.kindSet).toBe('nostrum')
+      if (kinds === KINDS_NOSTR_TUN) {
+        expect(body.capabilities.kindSet).toBe('nostr-tun')
       } else {
         expect(body.capabilities.kindSet).toBe('nip80')
       }

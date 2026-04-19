@@ -4,7 +4,7 @@ export type KindSet = {
   wrap: number
 }
 
-export const KINDS_NOSTRUM: KindSet = {
+export const KINDS_NOSTR_TUN: KindSet = {
   requestRumor: 21910,
   responseRumor: 21911,
   wrap: 1059,

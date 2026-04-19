@@ -1,14 +1,14 @@
 import { beforeAll, describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
 import {
   KINDS_NIP80,
-  KINDS_NOSTRUM,
+  KINDS_NOSTR_TUN,
   type KindSet,
   type NostrRequest,
-} from '@nostrum/core'
-import { Nostrum } from './app/nostrum.js'
+} from '@nostr-tun/core'
+import { NostrTun } from './app/nostr-tun.js'
 import { InMemoryStorageAdapter } from './adapters/storage/in-memory.adapter.js'
 import { HonoAdapter } from './adapters/http/hono.adapter.js'
 import type { RelayPort } from './ports/relay.port.js'
@@ -67,8 +67,8 @@ function makeReq(overrides: Partial<NostrRequest> = {}): NostrRequest {
   }
 }
 
-for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
-  describe(`Nostrum e2e (wrap=${kinds.wrap})`, () => {
+for (const kinds of [KINDS_NOSTR_TUN, KINDS_NIP80] satisfies KindSet[]) {
+  describe(`NostrTun e2e (wrap=${kinds.wrap})`, () => {
     const ndk = new NDK()
     ndk.explicitRelayUrls = []
     const crypto = new NdkCryptoAdapter(ndk, kinds)
@@ -77,7 +77,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
     let clientPk: string
     let serverSk: string
     let serverPk: string
-    let nostrum: Nostrum
+    let tunnel: NostrTun
     let relay: FakeRelayAdapter
     let app: Hono
     let echoCalls = 0
@@ -92,31 +92,31 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
       void serverPk
 
       app = new Hono()
-      nostrum = new Nostrum({
+      tunnel = new NostrTun({
         relays: [],
         secretKey: serverSk,
         ttl: 60,
         pubkey: serverPk,
       })
       relay = new FakeRelayAdapter()
-      nostrum
+      tunnel
         .useRelay(relay)
         .useCrypto(crypto)
         .useStorage(new InMemoryStorageAdapter())
         .useHttp(new HonoAdapter())
         .attachApp(app)
 
-      app.post('/v1/echo', nostrum.route(), async (c) => {
+      app.post('/v1/echo', tunnel.route(), async (c) => {
         echoCalls++
         const body = await c.req.text()
         return c.json({
           echoed: body,
-          principal: c.req.header('x-nostrum-principal'),
+          principal: c.req.header('x-nostr-tun-principal'),
         })
       })
       app.post('/v1/off', async (c) => c.text('should not run'))
 
-      await nostrum.connect()
+      await tunnel.connect()
     })
 
     test('criterion 1 — wrapped request reaches handler and response is published', async () => {
@@ -141,7 +141,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
       expect(payload.principal).toBe(clientPk)
     })
 
-    test('criterion 2 — route() not mounted → 501 + x-nostrum-error', async () => {
+    test('criterion 2 — route() not mounted → 501 + x-nostr-tun-error', async () => {
       const beforePublished = relay.published.length
       const req = makeReq({ id: '2'.repeat(32), path: '/v1/off' })
       const wrapped = await crypto.wrap(req, serverPk, clientSk, 60)
@@ -151,7 +151,7 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
       const resBytes = relay.published[beforePublished]!
       const res = await crypto.unwrapResponse(resBytes, clientSk)
       expect(res!.status).toBe(501)
-      expect(res!.headers['x-nostrum-error']).toBe('route-not-enabled')
+      expect(res!.headers['x-nostr-tun-error']).toBe('route-not-enabled')
     })
 
     test('criterion 3 — duplicate correlation id → handler runs once, no second publish', async () => {

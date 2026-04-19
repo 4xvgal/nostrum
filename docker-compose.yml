@@ -1,7 +1,7 @@
 services:
   relay:
     image: scsibug/nostr-rs-relay:latest
-    container_name: nostrum-smoke-relay
+    container_name: nostr-tun-smoke-relay
     ports:
       - "7777:8080"
     volumes:

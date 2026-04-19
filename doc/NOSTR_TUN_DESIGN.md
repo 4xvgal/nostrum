@@ -1,10 +1,10 @@
-# Nostrum — Monorepo Architecture Design
+# NostrTun — Monorepo Architecture Design
 
 > A TypeScript library that exposes existing Hono API routes as Nostr endpoints,
 > and provides a fetch()-compatible client to consume them.
 > The actual Nostr protocol work (relay pool, event signing, NIP-44 / NIP-59
 > Gift Wrap) is delegated to [NDK](https://github.com/nostr-dev-kit/ndk).
-> Nostrum is a thin hexagonal shell around NDK.
+> NostrTun is a thin hexagonal shell around NDK.
 > This document describes **structure and contracts only**. No implementation logic.
 > Behavior descriptions are in English prose.
 
@@ -13,21 +13,21 @@
 ## Monorepo Structure
 
 ```
-nostrum/
+nostr-tun/
 ├── packages/
-│   ├── core/                    # @nostrum/core — no external deps (pure)
+│   ├── core/                    # @nostr-tun/core — no external deps (pure)
 │   │   └── src/
 │   │       ├── types/
 │   │       │   └── index.ts         # Shared domain types
 │   │       └── ports/
 │   │           └── crypto.port.ts   # Shared by server & client
-│   ├── ndk-adapters/            # @nostrum/ndk-adapters — shared NDK-backed adapters
+│   ├── ndk-adapters/            # @nostr-tun/ndk-adapters — shared NDK-backed adapters
 │   │   └── src/
 │   │       └── ndk-crypto.adapter.ts     # implements core CryptoPort (uses NDK NIP-44/59)
-│   ├── server/                  # @nostrum/server — depends on core + ndk-adapters
+│   ├── server/                  # @nostr-tun/server — depends on core + ndk-adapters
 │   │   └── src/
 │   │       ├── app/                      # hexagon wiring (composition root)
-│   │       │   └── nostrum.ts
+│   │       │   └── tunnel.ts
 │   │       ├── ports/
 │   │       │   ├── storage.port.ts
 │   │       │   ├── relay.port.ts
@@ -40,10 +40,10 @@ nostrum/
 │   │           │   └── ndk-relay.adapter.ts      # implements RelayPort (uses NDK relay pool)
 │   │           └── http/
 │   │               └── hono.adapter.ts
-│   └── client/                  # @nostrum/client — depends on core + ndk-adapters
+│   └── client/                  # @nostr-tun/client — depends on core + ndk-adapters
 │       └── src/
 │           ├── app/                      # hexagon wiring (composition root)
-│           │   └── nostrum-client.ts     # HTTPS-first dual-mode dispatcher;
+│           │   └── tunnel-client.ts     # HTTPS-first dual-mode dispatcher;
 │           │                             # owns origin cache + pending-request map
 │           ├── ports/
 │           │   ├── transport.port.ts
@@ -60,7 +60,7 @@ nostrum/
 ```json
 // package.json (root)
 {
-  "name": "nostrum",
+  "name": "nostr-tun",
   "workspaces": ["packages/*"]
 }
 ```
@@ -88,38 +88,38 @@ nostrum/
 ## Package Dependency Graph
 
 ```
-@nostrum/core                  (pure — no external deps)
+@nostr-tun/core                  (pure — no external deps)
        ▲
        │ consumed by
        │
-@nostrum/ndk-adapters ──► @nostr-dev-kit/ndk
+@nostr-tun/ndk-adapters ──► @nostr-dev-kit/ndk
        ▲
        │ consumed by
        │
-@nostrum/server ──► @nostr-dev-kit/ndk (server-local adapters)
-@nostrum/client ──► @nostr-dev-kit/ndk (client-local adapters)
+@nostr-tun/server ──► @nostr-dev-kit/ndk (server-local adapters)
+@nostr-tun/client ──► @nostr-dev-kit/ndk (client-local adapters)
 ```
 
-- **`@nostrum/core`** — no external deps. Pure domain: shared types and
+- **`@nostr-tun/core`** — no external deps. Pure domain: shared types and
   the shared `CryptoPort`. Does not know NDK exists.
-- **`@nostrum/ndk-adapters`** — houses adapters whose implementation is
+- **`@nostr-tun/ndk-adapters`** — houses adapters whose implementation is
   identical on both sides (currently just `NdkCryptoAdapter`). Depends on
-  `@nostrum/core` and `@nostr-dev-kit/ndk`. Single source of truth for
+  `@nostr-tun/core` and `@nostr-dev-kit/ndk`. Single source of truth for
   shared NDK-backed port implementations.
-- **`@nostrum/server`** — depends on `@nostrum/core`,
-  `@nostrum/ndk-adapters`, and `@nostr-dev-kit/ndk`. Owns `StoragePort`,
+- **`@nostr-tun/server`** — depends on `@nostr-tun/core`,
+  `@nostr-tun/ndk-adapters`, and `@nostr-dev-kit/ndk`. Owns `StoragePort`,
   `CorrelationManager`, and server-only adapters (`NdkRelayAdapter`,
   `HonoAdapter`, `InMemoryStorageAdapter`). Storage and correlation are
   server-only because the client cannot persist its in-flight state
-  (`Promise` resolvers are not serializable — see `NostrumClient` below).
-- **`@nostrum/client`** — depends on `@nostrum/core`,
-  `@nostrum/ndk-adapters`, and `@nostr-dev-kit/ndk`. Ships only the
+  (`Promise` resolvers are not serializable — see `NostrTunClient` below).
+- **`@nostr-tun/client`** — depends on `@nostr-tun/core`,
+  `@nostr-tun/ndk-adapters`, and `@nostr-dev-kit/ndk`. Ships only the
   `NdkTransportAdapter`; the in-band Tor-style discovery flow
-  (`Nostrum-Location` header + `/.well-known/nostrum.json` manifest) is
-  built directly into `NostrumClient`. The `DiscoveryPort` interface
+  (`Nostr-Tun-Location` header + `/.well-known/nostr-tun.json` manifest) is
+  built directly into `NostrTunClient`. The `DiscoveryPort` interface
   remains as an extension point for external strategies (NIP-05, DNS TXT,
-  custom directories) documented in `NOSTRUM_DISCOVERY.md` — none of
-  those adapters live in this package. `NostrumClient` keeps an internal
+  custom directories) documented in `NOSTR_TUN_DISCOVERY.md` — none of
+  those adapters live in this package. `NostrTunClient` keeps an internal
   in-memory pending-request map and an origin cache; no `StoragePort` is
   exposed.
 
@@ -134,7 +134,7 @@ packages — core, ports, and the hexagon wiring stay unchanged.
 
 ---
 
-# @nostrum/core
+# @nostr-tun/core
 
 > Shared primitives used by both server and client.
 > Contains shared domain types (`NostrRequest`, `NostrResponse`,
@@ -168,7 +168,7 @@ type NostrResponse = {
   body: Uint8Array | null
 }
 
-// Per-origin server identity. Source-agnostic: produced by `Nostrum-Location`
+// Per-origin server identity. Source-agnostic: produced by `Nostr-Tun-Location`
 // parsing, manifest fetch, `pin()`, or any external `DiscoveryPort` adapter.
 type ServerInfo = {
   pubkey: string                  // Server's Nostr pubkey (hex)
@@ -183,7 +183,7 @@ type ServerInfo = {
 ## Kind Configuration (`core/src/types/kinds.ts`)
 
 > The Nostr `kind` numbers used for rumor/wrap layers are the only protocol
-> values that vary across implementations (Nostrum native vs NIP-80 draft vs
+> values that vary across implementations (NostrTun native vs NIP-80 draft vs
 > private deployments). They are **injected into adapters**, not hardcoded.
 > The seal kind is fixed at `13` by NIP-59 and is therefore not configurable.
 
@@ -194,9 +194,9 @@ type KindSet = {
   wrap: number           // outer gift wrap (1059 stored, 21059 ephemeral)
 }
 
-// Default — current Nostrum custom kinds, in the ephemeral range for rumors,
+// Default — current NostrTun custom kinds, in the ephemeral range for rumors,
 // regular NIP-59 wrap. Backward-compatible with NIP-17 infrastructure.
-const KINDS_NOSTRUM: KindSet = {
+const KINDS_NOSTR_TUN: KindSet = {
   requestRumor:  21910,
   responseRumor: 21911,
   wrap:          1059,
@@ -213,7 +213,7 @@ const KINDS_NIP80: KindSet = {
 ```
 
 **Injection rule:** every adapter that reads or writes kind numbers accepts
-`KindSet` as an optional constructor argument, defaulting to `KINDS_NOSTRUM`.
+`KindSet` as an optional constructor argument, defaulting to `KINDS_NOSTR_TUN`.
 Three adapters are affected: `NdkCryptoAdapter` (builds rumors and wraps),
 `NdkRelayAdapter` and `NdkTransportAdapter` (filter subscriptions by wrap kind).
 
@@ -264,12 +264,12 @@ the caller already knows which payload it's holding.
 
 ---
 
-# @nostrum/ndk-adapters
+# @nostr-tun/ndk-adapters
 
 > Single source of truth for adapters whose implementation is identical on
 > both server and client. Currently contains only `NdkCryptoAdapter`.
-> Depends on `@nostrum/core` and `@nostr-dev-kit/ndk`. Does **not** depend on
-> `@nostrum/server` or `@nostrum/client` — both sides consume this package
+> Depends on `@nostr-tun/core` and `@nostr-dev-kit/ndk`. Does **not** depend on
+> `@nostr-tun/server` or `@nostr-tun/client` — both sides consume this package
 > as a peer.
 
 ---
@@ -300,11 +300,11 @@ the caller already knows which payload it's holding.
 
 ```typescript
 import type NDK from '@nostr-dev-kit/ndk'
-import type { CryptoPort, NostrRequest, NostrResponse, KindSet } from '@nostrum/core'
-import { KINDS_NOSTRUM } from '@nostrum/core'
+import type { CryptoPort, NostrRequest, NostrResponse, KindSet } from '@nostr-tun/core'
+import { KINDS_NOSTR_TUN } from '@nostr-tun/core'
 
 class NdkCryptoAdapter implements CryptoPort {
-  constructor(private ndk: NDK, private kinds: KindSet = KINDS_NOSTRUM)
+  constructor(private ndk: NDK, private kinds: KindSet = KINDS_NOSTR_TUN)
   unwrapRequest(wrappedBytes: Uint8Array, callerSecretKey: string): Promise<NostrRequest | null>
   unwrapResponse(wrappedBytes: Uint8Array, callerSecretKey: string): Promise<NostrResponse | null>
   wrap(
@@ -324,25 +324,25 @@ event whose outer kind does not match `kinds.wrap` is rejected.
 
 ---
 
-# @nostrum/server
+# @nostr-tun/server
 
 > Hono middleware that exposes existing routes as Nostr endpoints.
-> Depends on `@nostrum/core`, `@nostrum/ndk-adapters`, and `@nostr-dev-kit/ndk`.
+> Depends on `@nostr-tun/core`, `@nostr-tun/ndk-adapters`, and `@nostr-dev-kit/ndk`.
 > NDK is the sole implementation used for relay connectivity, event signing,
 > NIP-44 encryption, and NIP-59 Gift Wrap construction. NDK symbols appear
-> only inside `adapters/` or come from `@nostrum/ndk-adapters`.
+> only inside `adapters/` or come from `@nostr-tun/ndk-adapters`.
 
 ---
 
 ## Client Event Specification
 
-> This section defines the wire format that any Nostrum-compatible client must produce.
+> This section defines the wire format that any NostrTun-compatible client must produce.
 > Server-side `CryptoPort.unwrapRequest()` (implemented by `NdkCryptoAdapter`) expects
 > exactly this structure.
 
 ### Discovery & Capability Advertisement
 
-> **Nostrum core does not perform discovery.** The protocol takes
+> **NostrTun core does not perform discovery.** The protocol takes
 > `pubkey + relays + path` as inputs and produces a round-trip. *How* the
 > client learns those inputs is layered on top, with three independent
 > strategies — pick any combination:
@@ -351,28 +351,28 @@ event whose outer kind does not match `kinds.wrap` is rejected.
 >    per origin. Suitable for trusted out-of-band setups, integration tests,
 >    and clients that already pinned a server.
 > 2. **In-band advertisement** (defined below): server's existing HTTPS
->    endpoint emits a `Nostrum-Location` response header and exposes
->    `/.well-known/nostrum.json`. Modeled on Tor's `Onion-Location`. This
->    is Nostrum's first-party mechanism — defined as part of the protocol
+>    endpoint emits a `Nostr-Tun-Location` response header and exposes
+>    `/.well-known/nostr-tun.json`. Modeled on Tor's `Onion-Location`. This
+>    is NostrTun's first-party mechanism — defined as part of the protocol
 >    because it requires server-side library support.
 > 3. **External lookup** (NIP-05, DNS TXT, hand-rolled directories, …):
 >    pluggable via `DiscoveryPort` on the client. Not specified here — see
->    `NOSTRUM_DISCOVERY.md` (separate doc) for adapters and grammars.
+>    `NOSTR_TUN_DISCOVERY.md` (separate doc) for adapters and grammars.
 >    All external strategies reduce to the same `{ pubkey, relays[] }` shape.
 
-#### `Nostrum-Location` HTTP response header
+#### `Nostr-Tun-Location` HTTP response header
 
-Origin-level signal. Tells a Nostrum-aware client "I exist on Nostr at this
+Origin-level signal. Tells a NostrTun-aware client "I exist on Nostr at this
 identity; consider switching transport." Server-side opt-in via
-`nostrum.advertise()` middleware (defined later); clients without Nostrum
+`nostr-tun.advertise()` middleware (defined later); clients without NostrTun
 support ignore the unknown header and stay on plain HTTPS — fully
 backward-compatible.
 
 ```
-Nostrum-Location: pubkey=<hex>; relays=<wss_url>[,<wss_url>...]; ma=<seconds>
+Nostr-Tun-Location: pubkey=<hex>; relays=<wss_url>[,<wss_url>...]; ma=<seconds>
 
 // Example
-Nostrum-Location: pubkey=abc123…; relays=wss://r1.example.com,wss://r2.example.com; ma=300
+Nostr-Tun-Location: pubkey=abc123…; relays=wss://r1.example.com,wss://r2.example.com; ma=300
 ```
 
 | Param | Required | Notes |
@@ -388,11 +388,11 @@ trust-bootstrap pattern Tor uses for `Onion-Location`. After the first
 successful HTTPS contact, the client treats the pubkey as authentic for
 the cache TTL.
 
-#### `/.well-known/nostrum.json` capability manifest
+#### `/.well-known/nostr-tun.json` capability manifest
 
 Route-level catalog. Tells the client *which paths* are exposed over
 Nostr, plus protocol capability flags. Auto-generated by
-`nostrum.manifest()` from the Hono route table — operators do not write
+`nostr-tun.manifest()` from the Hono route table — operators do not write
 or sync this list.
 
 ```json
@@ -402,7 +402,7 @@ or sync this list.
   "relays":  ["<wss_url>", "..."],
   "ttl":     300,
   "capabilities": {
-    "kindSet":  "nostrum",
+    "kindSet":  "nostr-tun",
     "chunking": false
   },
   "routes": [
@@ -416,7 +416,7 @@ or sync this list.
 |---|---|
 | `version` | Manifest schema version. Bump on breaking changes. |
 | `pubkey`, `relays`, `ttl` | Same semantics as the header. |
-| `capabilities.kindSet` | `"nostrum"` \| `"nip80"` \| custom `KindSet` object. |
+| `capabilities.kindSet` | `"nostr-tun"` \| `"nip80"` \| custom `KindSet` object. |
 | `capabilities.chunking` | `false` in v0 (rejects oversize), `true` in v1. |
 | `routes[].method` | Uppercase HTTP verb. |
 | `routes[].path` | Hono path syntax (`:param` for segments). |
@@ -425,16 +425,16 @@ or sync this list.
 Manifest endpoint should be served with `Cache-Control: public, max-age=<ttl>`
 so CDNs/intermediaries cache it.
 
-#### Runtime fallback — `501` + `x-nostrum-error`
+#### Runtime fallback — `501` + `x-nostr-tun-error`
 
 Safety net for stale manifests, race conditions during deployment, or
-clients that didn't fetch the manifest. If a Nostrum request arrives for a
-path that is **not** registered with `nostrum.route()`, the server
+clients that didn't fetch the manifest. If a NostrTun request arrives for a
+path that is **not** registered with `nostr-tun.route()`, the server
 responds with:
 
 ```
 status:  501
-headers: { "x-nostrum-error": "route-not-enabled" }
+headers: { "x-nostr-tun-error": "route-not-enabled" }
 body:    null
 ```
 
@@ -443,7 +443,7 @@ Client SDK behavior on receiving this:
 2. Re-issue the call over plain HTTPS transparently.
 3. Refresh the manifest on next opportunity (pre-emptive or lazy).
 
-This makes `nostrum.route()` simultaneously a **mount marker**
+This makes `nostr-tun.route()` simultaneously a **mount marker**
 (manifest derives the route list from it) and a **runtime gatekeeper**
 (non-marked handlers are never invoked from Nostr-decoded inputs, even
 if Hono's path router would otherwise match them — the dispatcher
@@ -505,7 +505,7 @@ The server's reply rumor has the `responseRumor` kind from the active `KindSet`
 
 ### Gift Wrap Layering (NIP-59, constructed via NDK)
 
-Kinds shown below are the `KINDS_NOSTRUM` defaults. Under `KINDS_NIP80` the
+Kinds shown below are the `KINDS_NOSTR_TUN` defaults. Under `KINDS_NIP80` the
 rumor kinds become `80`/`81` and the wrap kind becomes `21059` (ephemeral).
 Seal kind is fixed at `13` by NIP-59.
 
@@ -556,7 +556,7 @@ rumor.content.body
   + rumor.content.bodyEncoding
                             → NostrRequest.body  (Uint8Array | null)
 seal.pubkey                 → NostrRequest.principal
-                              → x-nostrum-principal request header
+                              → x-nostr-tun-principal request header
 wrap.tags[expiration]       → NostrRequest.expiresAt
 ```
 
@@ -564,10 +564,10 @@ wrap.tags[expiration]       → NostrRequest.expiresAt
 
 ## Ports
 
-> `CryptoPort` is **imported from `@nostrum/core`**. The ports below are
+> `CryptoPort` is **imported from `@nostr-tun/core`**. The ports below are
 > server-only. `StoragePort` lives here (not in core) because the client
 > has no use for it — see the package dependency notes above and the
-> `NostrumClient` section.
+> `NostrTunClient` section.
 
 ### `StoragePort` (`server/src/ports/storage.port.ts`)
 
@@ -640,7 +640,7 @@ interface HttpPort {
 ## Adapters
 
 > `NdkCryptoAdapter` is **not** defined here — it is imported from
-> `@nostrum/ndk-adapters` (single source of truth, shared with the client).
+> `@nostr-tun/ndk-adapters` (single source of truth, shared with the client).
 
 ### `NdkRelayAdapter`
 
@@ -657,14 +657,14 @@ interface HttpPort {
 
 ```typescript
 import NDK from '@nostr-dev-kit/ndk'
-import type { KindSet } from '@nostrum/core'
-import { KINDS_NOSTRUM } from '@nostrum/core'
+import type { KindSet } from '@nostr-tun/core'
+import { KINDS_NOSTR_TUN } from '@nostr-tun/core'
 
 class NdkRelayAdapter implements RelayPort {
   constructor(
     private ndk: NDK,
     private serverPubkey: string,
-    private kinds: KindSet = KINDS_NOSTRUM,
+    private kinds: KindSet = KINDS_NOSTR_TUN,
   )
   connect(): Promise<void>
   onEvent(handler: (rawEvent: Uint8Array) => void): void
@@ -699,7 +699,7 @@ class InMemoryStorageAdapter implements StoragePort {
 >
 > `toRequest()`: constructs a standard Web API Request from NostrRequest
 > fields. Always injects the caller's identity into the
-> **`x-nostrum-principal`** request header (value = `nostrRequest.principal`,
+> **`x-nostr-tun-principal`** request header (value = `nostrRequest.principal`,
 > i.e. the client's real Nostr pubkey hex). Handlers read this header to
 > authenticate the caller; absence means the request arrived over plain
 > HTTP and should be treated as anonymous.
@@ -715,8 +715,8 @@ class HonoAdapter implements HttpPort {
 ```
 
 **Spoofing-safety contract:** when the same handler is mounted for both
-HTTP and Nostr (the common case — see Server Usage Example), `nostrum.route()`
-**must strip any inbound `x-nostrum-principal` header from plain HTTP
+HTTP and Nostr (the common case — see Server Usage Example), `nostr-tun.route()`
+**must strip any inbound `x-nostr-tun-principal` header from plain HTTP
 requests before they reach the handler**. Otherwise an external HTTP caller
 could forge an arbitrary pubkey identity by setting the header itself. The
 Nostr path overwrites the header from the verified `seal.pubkey`, so it is
@@ -734,7 +734,7 @@ header must be absent.
 > addressed to the original caller via `principal`). Depends only on the
 > server-owned `StoragePort`. Has no knowledge of relay, crypto, or HTTP.
 >
-> Client-side correlation is **not** done here — `NostrumClient` keeps
+> Client-side correlation is **not** done here — `NostrTunClient` keeps
 > its own in-memory map of pending `Promise` resolvers, which cannot
 > live behind `StoragePort` (resolvers aren't serializable).
 
@@ -763,17 +763,17 @@ class CorrelationManager {
 
 ---
 
-## Public API — `Nostrum`
+## Public API — `NostrTun`
 
-> The composition root of `@nostrum/server`, located at
-> `packages/server/src/app/nostrum.ts`. Wires all ports together.
+> The composition root of `@nostr-tun/server`, located at
+> `packages/server/src/app/nostr-tun.ts`. Wires all ports together.
 
 ```typescript
-class Nostrum {
-  constructor(config: NostrumConfig)
+class NostrTun {
+  constructor(config: NostrTunConfig)
   useRelay(adapter: RelayPort): this
-  useCrypto(adapter: CryptoPort): this      // CryptoPort from @nostrum/core
-  useStorage(adapter: StoragePort): this    // StoragePort from @nostrum/server
+  useCrypto(adapter: CryptoPort): this      // CryptoPort from @nostr-tun/core
+  useStorage(adapter: StoragePort): this    // StoragePort from @nostr-tun/server
   useHttp(adapter: HttpPort): this
 
   // Connects to the configured relay(s), starts the inbound event loop,
@@ -783,24 +783,24 @@ class Nostrum {
   // Per-route opt-in middleware. Mounted on a Hono route, it serves two
   // roles simultaneously:
   //   (1) Mount marker — `manifest()` enumerates routes carrying this
-  //       middleware into `/.well-known/nostrum.json`.
+  //       middleware into `/.well-known/nostr-tun.json`.
   //   (2) Runtime gatekeeper — when an inbound Nostr-decoded request
   //       reaches the Hono dispatcher, only routes whose chain includes
   //       this middleware are permitted to invoke the handler. Routes
-  //       without it return 501 + x-nostrum-error: route-not-enabled.
+  //       without it return 501 + x-nostr-tun-error: route-not-enabled.
   // Plain HTTP requests pass through untouched.
   route(): MiddlewareHandler
 
-  // Hono middleware that injects the `Nostrum-Location` response header
+  // Hono middleware that injects the `Nostr-Tun-Location` response header
   // (origin-level advertisement) on every response that flows through it.
-  // Mount with `app.use('*', nostrum.advertise())` to advertise on all
+  // Mount with `app.use('*', tunnel.advertise())` to advertise on all
   // responses, or scope to specific routes/methods if desired.
   // The header value is built from the constructor's `pubkey` + `relays` +
   // `advertiseTtl`. Plain-HTTP-only deployments simply omit this call.
   advertise(): MiddlewareHandler
 
   // Hono handler that emits the auto-generated capability manifest.
-  // Mount with `app.get('/.well-known/nostrum.json', nostrum.manifest())`.
+  // Mount with `app.get('/.well-known/nostr-tun.json', tunnel.manifest())`.
   // At request time, it walks the Hono app's route table and includes only
   // routes whose middleware chain contains `route()` (identity-checked via
   // an internal symbol marker). The route list therefore tracks the code
@@ -810,11 +810,11 @@ class Nostrum {
   disconnect(): Promise<void>
 }
 
-type NostrumConfig = {
+type NostrTunConfig = {
   relays: string[]      // wss:// URLs. v0 uses relays[0] only; v1 dials all.
   secretKey: string     // Server's Nostr secret key (hex)
   ttl: number           // Seconds before a pending correlation entry expires
-  advertiseTtl?: number // Seconds for `Nostrum-Location` ma= and manifest ttl.
+  advertiseTtl?: number // Seconds for `Nostr-Tun-Location` ma= and manifest ttl.
                         // Defaults to 300.
 }
 ```
@@ -826,12 +826,12 @@ type NostrumConfig = {
 ```typescript
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import {
-  Nostrum,
+  NostrTun,
   NdkRelayAdapter,
   HonoAdapter,
   InMemoryStorageAdapter,
-} from '@nostrum/server'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
+} from '@nostr-tun/server'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
 import { Hono } from 'hono'
 
 const relays = ['wss://relay.example.com']
@@ -839,11 +839,11 @@ const signer = new NDKPrivateKeySigner(process.env.SERVER_SECRET_KEY!)
 const ndk = new NDK({ explicitRelayUrls: relays, signer })
 const serverPubkey = (await signer.user()).pubkey
 
-// Kinds default to KINDS_NOSTRUM if omitted.
-// import { KINDS_NIP80 } from '@nostrum/core'
+// Kinds default to KINDS_NOSTR_TUN if omitted.
+// import { KINDS_NIP80 } from '@nostr-tun/core'
 // const kinds = KINDS_NIP80     // ← opt into the NIP-80 draft
 
-const nostrum = new Nostrum({
+const tunnel = new NostrTun({
   relays,
   secretKey: process.env.SERVER_SECRET_KEY!,
   ttl: 120,
@@ -853,26 +853,26 @@ const nostrum = new Nostrum({
   .useStorage(new InMemoryStorageAdapter())
   .useHttp(new HonoAdapter())
 
-await nostrum.connect()
+await tunnel.connect()
 
 const app = new Hono()
 
-// Advertise Nostrum on every HTTPS response (sets `Nostrum-Location` header).
+// Advertise NostrTun on every HTTPS response (sets `Nostr-Tun-Location` header).
 // Optional — omit if you only want clients with out-of-band knowledge to
 // reach the Nostr endpoints.
-app.use('*', nostrum.advertise())
+app.use('*', tunnel.advertise())
 
 // Auto-generated capability manifest. Lists every route below that has
-// `nostrum.route()` mounted — derived from the Hono route table at request
+// `nostr-tun.route()` mounted — derived from the Hono route table at request
 // time. Operators never write this list by hand.
-app.get('/.well-known/nostrum.json', nostrum.manifest())
+app.get('/.well-known/nostr-tun.json', tunnel.manifest())
 
 // Plain HTTP only — not exposed via Nostr; absent from the manifest.
 app.post('/v1/mint/quote', mintQuoteHandler)
 
 // HTTP + Nostr — same handler, both transports.
 // Listed in the manifest as { method: "POST", path: "/v1/mint/quote" }.
-app.post('/v1/mint/quote', nostrum.route(), mintQuoteHandler)
+app.post('/v1/mint/quote', tunnel.route(), mintQuoteHandler)
 
 // Pick the runtime adapter for your deployment:
 import { serve } from '@hono/node-server'
@@ -887,27 +887,27 @@ serve({ fetch: app.fetch, port: 3000 })
 
 ---
 
-# @nostrum/client
+# @nostr-tun/client
 
 > fetch()-compatible Nostr client SDK.
 > Resolves server info, wraps requests in Gift Wrap, and returns standard Response objects.
-> Depends on `@nostrum/core`, `@nostrum/ndk-adapters`, and `@nostr-dev-kit/ndk`.
-> NDK symbols appear only inside `adapters/` or come from `@nostrum/ndk-adapters`.
+> Depends on `@nostr-tun/core`, `@nostr-tun/ndk-adapters`, and `@nostr-dev-kit/ndk`.
+> NDK symbols appear only inside `adapters/` or come from `@nostr-tun/ndk-adapters`.
 
 ---
 
 ## Ports
 
-> `CryptoPort` is **imported from `@nostrum/core`**. The ports below are
+> `CryptoPort` is **imported from `@nostr-tun/core`**. The ports below are
 > client-only. The client deliberately does **not** define a `StoragePort`:
 > its in-flight state is a map of pending `Promise` resolvers, which
-> cannot be persisted in any external KV. See `NostrumClient` below.
+> cannot be persisted in any external KV. See `NostrTunClient` below.
 
 ### `TransportPort`
 
 > Defines how the client sends and receives raw Nostr events.
 > Symmetric with the server's `RelayPort`. **Crypto-agnostic by design** —
-> decryption and Correlation ID matching are the orchestrator's (`NostrumClient`)
+> decryption and Correlation ID matching are the orchestrator's (`NostrTunClient`)
 > concern, not this port's. This keeps `CryptoPort` and `TransportPort`
 > independently swappable.
 
@@ -933,12 +933,12 @@ interface TransportPort {
 
 > Optional. Plug here to consult an **external** discovery strategy
 > (NIP-05, DNS TXT, hand-rolled directory, etc.) when an origin's
-> `ServerInfo` is not already known to `NostrumClient` from a pinned
-> config or from in-band `Nostrum-Location` learning.
+> `ServerInfo` is not already known to `NostrTunClient` from a pinned
+> config or from in-band `Nostr-Tun-Location` learning.
 >
-> No concrete implementations ship in `@nostrum/client` — see
-> `NOSTRUM_DISCOVERY.md` for adapters and grammars. The interface is
-> defined here so the resolution chain inside `NostrumClient` has a
+> No concrete implementations ship in `@nostr-tun/client` — see
+> `NOSTR_TUN_DISCOVERY.md` for adapters and grammars. The interface is
+> defined here so the resolution chain inside `NostrTunClient` has a
 > single, stable hook.
 
 ```typescript
@@ -949,16 +949,16 @@ interface DiscoveryPort {
 }
 ```
 
-`NostrumClient` consults this *after* its pinned-origin map and *before*
-falling back to plain HTTPS + `Nostrum-Location` learning — see the
-resolution order in the `NostrumClient` section below.
+`NostrTunClient` consults this *after* its pinned-origin map and *before*
+falling back to plain HTTPS + `Nostr-Tun-Location` learning — see the
+resolution order in the `NostrTunClient` section below.
 
 ---
 
 ## Adapters
 
 > `NdkCryptoAdapter` is **not** defined here — it is imported from
-> `@nostrum/ndk-adapters` (single source of truth, shared with the server).
+> `@nostr-tun/ndk-adapters` (single source of truth, shared with the server).
 
 ### `NdkTransportAdapter`
 
@@ -976,14 +976,14 @@ resolution order in the `NostrumClient` section below.
 
 ```typescript
 import NDK from '@nostr-dev-kit/ndk'
-import type { KindSet } from '@nostrum/core'
-import { KINDS_NOSTRUM } from '@nostrum/core'
+import type { KindSet } from '@nostr-tun/core'
+import { KINDS_NOSTR_TUN } from '@nostr-tun/core'
 
 class NdkTransportAdapter implements TransportPort {
   constructor(
     private ndk: NDK,
     private clientPubkey: string,
-    private kinds: KindSet = KINDS_NOSTRUM,
+    private kinds: KindSet = KINDS_NOSTR_TUN,
   )
   connect(): Promise<void>
   onEvent(handler: (rawEvent: Uint8Array) => void): void
@@ -994,28 +994,28 @@ class NdkTransportAdapter implements TransportPort {
 
 The subscription filter is built as `{ kinds: [kinds.wrap], '#p': [clientPubkey] }`.
 
-> No `DiscoveryPort` adapter ships in `@nostrum/client` — see
-> `NOSTRUM_DISCOVERY.md` for NIP-05 / DNS TXT / custom directory
-> implementations. The default Nostrum discovery flow uses in-band
-> `Nostrum-Location` learning, which is built into `NostrumClient`
+> No `DiscoveryPort` adapter ships in `@nostr-tun/client` — see
+> `NOSTR_TUN_DISCOVERY.md` for NIP-05 / DNS TXT / custom directory
+> implementations. The default NostrTun discovery flow uses in-band
+> `Nostr-Tun-Location` learning, which is built into `NostrTunClient`
 > directly (no port adapter needed).
 
 ---
 
-## Public API — `NostrumClient`
+## Public API — `NostrTunClient`
 
-> The composition root of `@nostrum/client`, located at
-> `packages/client/src/app/nostrum-client.ts`. Exposes a `fetch()`-compatible
+> The composition root of `@nostr-tun/client`, located at
+> `packages/client/src/app/nostr-tun-client.ts`. Exposes a `fetch()`-compatible
 > interface and acts as a **dual-mode dispatcher**: every call goes either
-> over Nostr (when the origin is known to be Nostrum-capable for the target
+> over Nostr (when the origin is known to be NostrTun-capable for the target
 > path) or over plain HTTPS (otherwise — which doubles as the in-band
 > learning channel).
 >
 > Internally maintains two stores:
 >   - **Origin cache**: `Map<origin, { pubkey, relays, manifest, expiresAt }>`.
 >     Populated by pinning, by `DiscoveryPort` resolution, or by parsing
->     the `Nostrum-Location` header from HTTPS responses (and then fetching
->     `/.well-known/nostrum.json`).
+>     the `Nostr-Tun-Location` header from HTTPS responses (and then fetching
+>     `/.well-known/nostr-tun.json`).
 >   - **Pending-request map**: `Map<id, { resolve, reject, expiresAt }>` for
 >     outstanding Nostr round-trips. The TTL timer and Correlation ID
 >     matching live here — **not** inside the transport adapter, and **not**
@@ -1037,22 +1037,22 @@ For each `fetch(url, init)`:
 3. **External `DiscoveryPort` provided?** — call `discovery.resolve(origin)`.
    On success, populate cache and proceed as in (2).
 4. **Fall back to HTTPS** — perform a plain `fetch()`. After the response
-   arrives, scan headers for `Nostrum-Location`:
+   arrives, scan headers for `Nostr-Tun-Location`:
    - **Present** → parse, populate cache, kick off a background fetch of
-     `/.well-known/nostrum.json` to populate the route list. Subsequent
+     `/.well-known/nostr-tun.json` to populate the route list. Subsequent
      calls to this origin can take the Nostr path.
-   - **Absent** → cache the negative result (origin is not Nostrum-aware)
+   - **Absent** → cache the negative result (origin is not NostrTun-aware)
      for a short interval to avoid re-checking on every call.
 5. **Runtime safety net** — if the Nostr path returns
-   `501 + x-nostrum-error: route-not-enabled`, mark the path as
+   `501 + x-nostr-tun-error: route-not-enabled`, mark the path as
    Nostr-disabled, retry transparently via plain HTTPS, and trigger a
    manifest refresh.
 
 ```typescript
-class NostrumClient {
-  constructor(config: NostrumClientConfig)
+class NostrTunClient {
+  constructor(config: NostrTunClientConfig)
   useTransport(adapter: TransportPort): this
-  useCrypto(adapter: CryptoPort): this           // CryptoPort from @nostrum/core
+  useCrypto(adapter: CryptoPort): this           // CryptoPort from @nostr-tun/core
   useDiscovery(adapter: DiscoveryPort): this     // optional — external strategy
 
   // Pre-seed the origin cache with a known server. Bypasses HTTPS-first
@@ -1071,11 +1071,11 @@ class NostrumClient {
   fetch(url: string, init?: RequestInit): Promise<Response>
 }
 
-type NostrumClientConfig = {
+type NostrTunClientConfig = {
   secretKey: string   // Client's Nostr secret key (hex)
   ttl: number         // Seconds to wait for a response before rejecting
 
-  // Whether to learn from `Nostrum-Location` headers on HTTPS responses
+  // Whether to learn from `Nostr-Tun-Location` headers on HTTPS responses
   // and auto-switch subsequent calls to Nostr. Defaults to `true`.
   // Set `false` to disable in-band learning (only `pin()` and the optional
   // DiscoveryPort populate the origin cache).
@@ -1090,26 +1090,26 @@ type NostrumClientConfig = {
 ```typescript
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import {
-  NostrumClient,
+  NostrTunClient,
   NdkTransportAdapter,
-} from '@nostrum/client'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
+} from '@nostr-tun/client'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
 
 const clientSecretKey = /* hex */
 const signer = new NDKPrivateKeySigner(clientSecretKey)
 const clientPubkey = (await signer.user()).pubkey
 
-// Relay URL is resolved lazily per origin (from `Nostrum-Location` header
+// Relay URL is resolved lazily per origin (from `Nostr-Tun-Location` header
 // or pinned config); the NDK instance is reused across origins and adds
 // relays on demand.
 const ndk = new NDK({ signer })
 await ndk.connect()
 
-// Kinds default to KINDS_NOSTRUM if omitted.
-// import { KINDS_NIP80 } from '@nostrum/core'
+// Kinds default to KINDS_NOSTR_TUN if omitted.
+// import { KINDS_NIP80 } from '@nostr-tun/core'
 // const kinds = KINDS_NIP80
 
-const client = new NostrumClient({
+const client = new NostrTunClient({
   secretKey: clientSecretKey,
   ttl: 120,
   // learnFromAdvertisement: true,    // ← default; HTTPS-first auto-upgrade
@@ -1126,10 +1126,10 @@ const client = new NostrumClient({
 // })
 
 // Drop-in for fetch() — caller is unaware of Nostr.
-// First call to a new origin: plain HTTPS, learn from `Nostrum-Location`,
+// First call to a new origin: plain HTTPS, learn from `Nostr-Tun-Location`,
 // fetch manifest in the background.
 // Subsequent calls: Nostr (provided the path is in the manifest); HTTPS
-// fallback for paths the manifest doesn't expose, or on 501 + x-nostrum-error.
+// fallback for paths the manifest doesn't expose, or on 501 + x-nostr-tun-error.
 const res = await client.fetch('https://zappy.kr/v1/mint/quote', {
   method: 'POST',
   body: JSON.stringify({ amount: 1000 }),
@@ -1147,7 +1147,7 @@ const data = await res.json()
 
 ### v0 — Minimum viable round-trip
 
-Goal: a client can call `client.fetch(url)` against a Nostrum-enabled Hono
+Goal: a client can call `client.fetch(url)` against a NostrTun-enabled Hono
 server over a single Nostr relay, end-to-end, with the correct wire format.
 
 | Feature | Package | Backed by |
@@ -1159,9 +1159,9 @@ server over a single Nostr relay, end-to-end, with the correct wire format.
 | Correlation ID matching (client, via in-memory pending map) | client | — (pure) |
 | TTL eviction | server / client | — (pure) |
 | Per-route opt-in Hono middleware (mount marker + runtime gatekeeper) | server | — |
-| `Nostrum-Location` advertise middleware | server | — |
-| `/.well-known/nostrum.json` auto-generated manifest | server | Hono route table |
-| `501 + x-nostrum-error` runtime fallback | server | — |
+| `Nostr-Tun-Location` advertise middleware | server | — |
+| `/.well-known/nostr-tun.json` auto-generated manifest | server | Hono route table |
+| `501 + x-nostr-tun-error` runtime fallback | server | — |
 | Direct connection (`pin(origin, info)`) | client | — |
 | HTTPS-first in-band learning + auto-switch | client | — |
 | Manifest-aware per-route dispatch + HTTPS fallback | client | — |
@@ -1218,15 +1218,15 @@ contracts change.
   instance A already accepted) is handled by Redis without extra locking.
 
 **Migration from v0 → v1:** swap adapters at the composition root only.
-Application code using `Nostrum` / `NostrumClient` does not change.
+Application code using `NostrTun` / `NostrTunClient` does not change.
 
 ---
 
 ## Extension Points
 
-- **External discovery strategies (NIP-05, DNS TXT, custom directories):** Implement `DiscoveryPort` and inject via `NostrumClient.useDiscovery(...)`. See `NOSTRUM_DISCOVERY.md` (separate doc) for the catalog of strategies and their wire formats. Core protocol does not change.
-- **Chunk support (v1):** Add `chunk` field to `NostrRequest`/`NostrResponse` in `@nostrum/core` and bump `capabilities.chunking` to `true` in the manifest. Port contracts do not change — only the server's `CorrelationManager`, the client's pending-request map, and the crypto adapters grow.
+- **External discovery strategies (NIP-05, DNS TXT, custom directories):** Implement `DiscoveryPort` and inject via `NostrTunClient.useDiscovery(...)`. See `NOSTR_TUN_DISCOVERY.md` (separate doc) for the catalog of strategies and their wire formats. Core protocol does not change.
+- **Chunk support (v1):** Add `chunk` field to `NostrRequest`/`NostrResponse` in `@nostr-tun/core` and bump `capabilities.chunking` to `true` in the manifest. Port contracts do not change — only the server's `CorrelationManager`, the client's pending-request map, and the crypto adapters grow.
 - **Multi-relay (v1):** NDK already supports multi-relay pools; upgrade simply means passing multiple `explicitRelayUrls` to the `NDK` instance that backs `NdkRelayAdapter` / `NdkTransportAdapter`. Port contracts unchanged.
-- **HTTP fallback transport (v1):** Add `HttpTransportAdapter` to `@nostrum/client` implementing `TransportPort`. Has no NDK dependency. Client code does not change — only the injected adapter swaps. (Independent of the existing HTTPS-first dispatcher in `NostrumClient`, which always uses the platform `fetch`.)
-- **Alternate Nostr library:** Replace `Ndk*` adapters with ones built on `nostr-tools` or another library. Core, ports, `Nostrum`, and `NostrumClient` do not change.
+- **HTTP fallback transport (v1):** Add `HttpTransportAdapter` to `@nostr-tun/client` implementing `TransportPort`. Has no NDK dependency. Client code does not change — only the injected adapter swaps. (Independent of the existing HTTPS-first dispatcher in `NostrTunClient`, which always uses the platform `fetch`.)
+- **Alternate Nostr library:** Replace `Ndk*` adapters with ones built on `nostr-tools` or another library. Core, ports, `NostrTun`, and `NostrTunClient` do not change.
 - **Rust port:** Each port interface maps to a Rust trait. Each adapter becomes a struct (backed by `nostr-sdk` or similar). Core maps to a Tokio task. The hexagonal boundary makes the translation mechanical.

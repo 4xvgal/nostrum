@@ -1,5 +1,5 @@
-import { KINDS_NOSTRUM, type KindSet } from '@nostrum/core'
-import type { RelayPort } from '@nostrum/server'
+import { KINDS_NOSTR_TUN, type KindSet } from '@nostr-tun/core'
+import type { RelayPort } from '@nostr-tun/server'
 import { WsClient } from './ws-client.js'
 
 export class NostrToolsRelayAdapter implements RelayPort {
@@ -9,7 +9,7 @@ export class NostrToolsRelayAdapter implements RelayPort {
   constructor(
     private readonly relayUrl: string,
     private readonly serverPubkey: string,
-    private readonly kinds: KindSet = KINDS_NOSTRUM,
+    private readonly kinds: KindSet = KINDS_NOSTR_TUN,
   ) {
     this.#ws = new WsClient(this.relayUrl)
   }

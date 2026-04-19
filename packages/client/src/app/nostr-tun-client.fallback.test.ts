@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
-import { KINDS_NOSTRUM } from '@nostrum/core'
-import { NostrumClient } from './nostrum-client.js'
+import { NdkCryptoAdapter } from '@nostr-tun/ndk-adapters'
+import { KINDS_NOSTR_TUN } from '@nostr-tun/core'
+import { NostrTunClient } from './nostr-tun-client.js'
 import type { TransportPort } from '../ports/transport.port.js'
 
 class BridgeTransport implements TransportPort {
@@ -21,7 +21,7 @@ class BridgeTransport implements TransportPort {
   }
 }
 
-describe('NostrumClient 501 fallback', () => {
+describe('NostrTunClient 501 fallback', () => {
   let originalFetch: typeof globalThis.fetch
   let fetchCalls: { url: string; init: RequestInit | undefined }[]
 
@@ -31,14 +31,14 @@ describe('NostrumClient 501 fallback', () => {
     globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.toString()
       fetchCalls.push({ url, init })
-      if (url.endsWith('/.well-known/nostrum.json')) {
+      if (url.endsWith('/.well-known/nostr-tun.json')) {
         return new Response(
           JSON.stringify({
             version: '0.1',
             pubkey: 'pk',
             relays: [],
             ttl: 300,
-            capabilities: { kindSet: 'nostrum', chunking: false },
+            capabilities: { kindSet: 'nostr-tun', chunking: false },
             routes: [],
           }),
           { status: 200 },
@@ -57,7 +57,7 @@ describe('NostrumClient 501 fallback', () => {
   test('pinned origin: 501 from Nostr → transparent HTTPS retry', async () => {
     const ndk = new NDK()
     ndk.explicitRelayUrls = []
-    const crypto = new NdkCryptoAdapter(ndk, KINDS_NOSTRUM)
+    const crypto = new NdkCryptoAdapter(ndk, KINDS_NOSTR_TUN)
 
     const clientSigner = NDKPrivateKeySigner.generate()
     const serverSigner = NDKPrivateKeySigner.generate()
@@ -67,12 +67,12 @@ describe('NostrumClient 501 fallback', () => {
     const serverPk = serverSigner.pubkey
 
     const transport = new BridgeTransport()
-    const client = new NostrumClient({ secretKey: clientSk, ttl: 60 })
+    const client = new NostrTunClient({ secretKey: clientSk, ttl: 60 })
       .useTransport(transport)
       .useCrypto(crypto)
       .pin('https://srv.test', { pubkey: serverPk, relays: [] })
 
-    // Server responds to any wrapped request with 501 x-nostrum-error.
+    // Server responds to any wrapped request with 501 x-nostr-tun-error.
     const fetchPromise = client.fetch('https://srv.test/v1/echo', {
       method: 'POST',
       body: 'hi',
@@ -93,7 +93,7 @@ describe('NostrumClient 501 fallback', () => {
       {
         id: incomingReq!.id,
         status: 501,
-        headers: { 'x-nostrum-error': 'route-not-enabled' },
+        headers: { 'x-nostr-tun-error': 'route-not-enabled' },
         body: null,
       },
       clientPk,
@@ -117,14 +117,14 @@ describe('NostrumClient 501 fallback', () => {
   test('cached origin: 501 marks path disabled, next call skips Nostr', async () => {
     const ndk = new NDK()
     ndk.explicitRelayUrls = []
-    const crypto = new NdkCryptoAdapter(ndk, KINDS_NOSTRUM)
+    const crypto = new NdkCryptoAdapter(ndk, KINDS_NOSTR_TUN)
     const serverSigner = NDKPrivateKeySigner.generate()
     const serverPk = serverSigner.pubkey
     const serverSk = serverSigner.privateKey
     const clientSk = NDKPrivateKeySigner.generate().privateKey
 
     const transport = new BridgeTransport()
-    const client = new NostrumClient({ secretKey: clientSk, ttl: 60 })
+    const client = new NostrTunClient({ secretKey: clientSk, ttl: 60 })
       .useTransport(transport)
       .useCrypto(crypto)
       .pin('https://srv.test', { pubkey: serverPk, relays: [] })
@@ -140,7 +140,7 @@ describe('NostrumClient 501 fallback', () => {
       {
         id: req1!.id,
         status: 501,
-        headers: { 'x-nostrum-error': 'route-not-enabled' },
+        headers: { 'x-nostr-tun-error': 'route-not-enabled' },
         body: null,
       },
       NDKPrivateKeySigner.generate().pubkey, // irrelevant — client unwraps with own sk
@@ -153,7 +153,7 @@ describe('NostrumClient 501 fallback', () => {
       {
         id: req1!.id,
         status: 501,
-        headers: { 'x-nostrum-error': 'route-not-enabled' },
+        headers: { 'x-nostr-tun-error': 'route-not-enabled' },
         body: null,
       },
       clientPk,

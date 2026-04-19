@@ -1,13 +1,13 @@
-import type { NostrRequest, NostrResponse } from '@nostrum/core'
+import type { NostrRequest, NostrResponse } from '@nostr-tun/core'
 import type { HttpPort } from '../../ports/http.port.js'
 
 const BODYLESS_METHODS = new Set(['GET', 'HEAD'])
 
 export class HonoAdapter implements HttpPort {
   toRequest(req: NostrRequest): Request {
-    const url = `http://nostrum.local${req.path}`
+    const url = `http://nostr-tun.local${req.path}`
     const headers = new Headers(req.headers)
-    headers.set('x-nostrum-principal', req.principal)
+    headers.set('x-nostr-tun-principal', req.principal)
 
     const method = req.method.toUpperCase()
     const init: RequestInit = { method, headers }

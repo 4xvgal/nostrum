@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { Hono } from 'hono'
-import type { CryptoPort } from '@nostrum/core'
-import { Nostrum } from './nostrum.js'
+import type { CryptoPort } from '@nostr-tun/core'
+import { NostrTun } from './nostr-tun.js'
 import { InMemoryStorageAdapter } from '../adapters/storage/in-memory.adapter.js'
 import { HonoAdapter } from '../adapters/http/hono.adapter.js'
 import type { RelayPort } from '../ports/relay.port.js'
@@ -27,7 +27,7 @@ function noopCrypto(): CryptoPort {
   }
 }
 
-describe('Nostrum eviction timer', () => {
+describe('NostrTun eviction timer', () => {
   test('periodically calls evictExpired, removing stale entries', async () => {
     const storage = new InMemoryStorageAdapter()
     const past = Math.floor(Date.now() / 1000) - 10
@@ -38,7 +38,7 @@ describe('Nostrum eviction timer', () => {
     expect(await storage.get('stale-id')).toBeNull() // expired — get returns null
     // However internal map still contains it; evictExpired should truly remove.
 
-    const nostrum = new Nostrum({
+    const tunnel = new NostrTun({
       relays: [],
       secretKey: 'sk',
       ttl: 1,
@@ -50,7 +50,7 @@ describe('Nostrum eviction timer', () => {
       .useHttp(new HonoAdapter())
       .attachApp(new Hono())
 
-    await nostrum.connect()
+    await tunnel.connect()
 
     // Wait > ttl*1000 = 1000ms so interval fires at least once.
     await new Promise((r) => setTimeout(r, 1200))
@@ -67,11 +67,11 @@ describe('Nostrum eviction timer', () => {
     // Fresh entry untouched.
     expect(await storage.get('fresh-id')).not.toBeNull()
 
-    await nostrum.disconnect()
+    await tunnel.disconnect()
   })
 
   test('disconnect stops the timer', async () => {
-    const nostrum = new Nostrum({
+    const tunnel = new NostrTun({
       relays: [],
       secretKey: 'sk',
       ttl: 1,
@@ -83,8 +83,8 @@ describe('Nostrum eviction timer', () => {
       .useHttp(new HonoAdapter())
       .attachApp(new Hono())
 
-    await nostrum.connect()
-    await nostrum.disconnect()
+    await tunnel.connect()
+    await tunnel.disconnect()
     // If timer weren't cleared, bun test would hang on exit.
     expect(true).toBe(true)
   })

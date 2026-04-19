@@ -3,7 +3,7 @@ import { type Stats, stats } from './bench-core.js'
 /**
  * Raw relay RTT: opens one WS, then for each iteration sends a REQ and
  * measures time-to-EOSE. Closes each sub immediately after. This isolates
- * relay network + processing latency from the Nostrum wrap/unwrap path.
+ * relay network + processing latency from the NostrTun wrap/unwrap path.
  */
 export async function measureRelayRtt(
   relayUrl: string,

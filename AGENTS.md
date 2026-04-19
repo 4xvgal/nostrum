@@ -1,10 +1,10 @@
 # AGENTS.md
 
-Hexagonal architecture rules for the Nostrum monorepo. See
-`NOSTRUM_DESIGN.md` for full context, `NOSTRUM_MILESTONES.md` for plan.
+Hexagonal architecture rules for the NostrTun monorepo. See
+`NOSTR_TUN_DESIGN.md` for full context, `NOSTR_TUN_MILESTONES.md` for plan.
 
-Packages: `@nostrum/core`, `@nostrum/ndk-adapters`, `@nostrum/server`,
-`@nostrum/client`.
+Packages: `@nostr-tun/core`, `@nostr-tun/ndk-adapters`, `@nostr-tun/server`,
+`@nostr-tun/client`.
 
 ---
 
@@ -23,11 +23,11 @@ core  ◄─  ndk-adapters  ◄─  server
                          ◄─  client
 ```
 
-`@nostrum/server` and `@nostrum/client` never import each other.
+`@nostr-tun/server` and `@nostr-tun/client` never import each other.
 
 ### R2 — Domain purity
 
-`@nostrum/core` has zero external deps.
+`@nostr-tun/core` has zero external deps.
 - No `@nostr-dev-kit/ndk`, `hono`, or runtime-specific imports.
 - No network, filesystem, or top-level `await`.
 - No SDK types (`NDKEvent`, `NDKFilter`, …) in `core/` type definitions.
@@ -49,8 +49,8 @@ Ports describe **what** the hexagon needs, not **how** an SDK provides it.
 
 ### R4 — Composition root is the only boundary crosser
 
-Only `packages/server/src/app/nostrum.ts` (`Nostrum`) and
-`packages/client/src/app/nostrum-client.ts` (`NostrumClient`) may import
+Only `packages/server/src/app/nostr-tun.ts` (`NostrTun`) and
+`packages/client/src/app/nostr-tun-client.ts` (`NostrTunClient`) may import
 adapters *and* ports *and* domain in the same file. They construct
 adapters, inject them via `use*()` methods, and expose the public API.
 
@@ -62,23 +62,23 @@ adapters, inject them via `use*()` methods, and expose the public API.
 |------|-----------|---------------|
 | `core/types/` | nothing | everything |
 | `core/ports/` | `core/types/` | any adapter, any SDK |
-| `ndk-adapters/*` | `@nostrum/core`, `@nostr-dev-kit/ndk` | `server`, `client`, `hono` |
-| `server/ports/`, `server/correlation-manager.ts` | `@nostrum/core`, `server/ports/` | `server/adapters/`, any SDK, `hono` |
-| `server/adapters/` | `@nostrum/core`, `server/ports/`, its SDK | `server/app/`, `@nostrum/client` |
-| `server/app/` | everything in package, `@nostrum/core`, `@nostrum/ndk-adapters` | `@nostrum/client` |
-| `client/ports/` | `@nostrum/core` | `client/adapters/`, `client/app/`, any SDK |
-| `client/adapters/` | `@nostrum/core`, `client/ports/`, its SDK | `client/app/`, `@nostrum/server` |
-| `client/app/` | everything in package, `@nostrum/core`, `@nostrum/ndk-adapters` | `@nostrum/server` |
+| `ndk-adapters/*` | `@nostr-tun/core`, `@nostr-dev-kit/ndk` | `server`, `client`, `hono` |
+| `server/ports/`, `server/correlation-manager.ts` | `@nostr-tun/core`, `server/ports/` | `server/adapters/`, any SDK, `hono` |
+| `server/adapters/` | `@nostr-tun/core`, `server/ports/`, its SDK | `server/app/`, `@nostr-tun/client` |
+| `server/app/` | everything in package, `@nostr-tun/core`, `@nostr-tun/ndk-adapters` | `@nostr-tun/client` |
+| `client/ports/` | `@nostr-tun/core` | `client/adapters/`, `client/app/`, any SDK |
+| `client/adapters/` | `@nostr-tun/core`, `client/ports/`, its SDK | `client/app/`, `@nostr-tun/server` |
+| `client/app/` | everything in package, `@nostr-tun/core`, `@nostr-tun/ndk-adapters` | `@nostr-tun/server` |
 
 ---
 
 ## Practical invariants
 
 - **SDK symbols** (`NDK`, `NDKEvent`, `NDKPrivateKeySigner`, `NDKFilter`, …) appear only under `ndk-adapters/` or `packages/*/src/adapters/`. Grep outside those paths ⇒ violation.
-- **Hono symbols** appear only under `server/adapters/http/` and the `Nostrum` composition root. Never in `core/` or ports.
-- **`KindSet` injection:** every adapter touching kind numbers takes `KindSet` as a constructor arg (default `KINDS_NOSTRUM`). Never hardcode kind numbers.
+- **Hono symbols** appear only under `server/adapters/http/` and the `NostrTun` composition root. Never in `core/` or ports.
+- **`KindSet` injection:** every adapter touching kind numbers takes `KindSet` as a constructor arg (default `KINDS_NOSTR_TUN`). Never hardcode kind numbers.
 - **Client has no `StoragePort`.** Pending-request map stays in-memory — `Promise` resolvers aren't serializable.
-- **Spoofing guard:** `route()` strips inbound `x-nostrum-principal` on plain HTTP before handlers run. The Nostr path re-injects it from verified `seal.pubkey`.
+- **Spoofing guard:** `route()` strips inbound `x-nostr-tun-principal` on plain HTTP before handlers run. The Nostr path re-injects it from verified `seal.pubkey`.
 - **Bun is a dev-tool only.** No `Bun.serve`, `Bun.file`, `Bun.sql` in published code. Target standard Web APIs.
 
 ---

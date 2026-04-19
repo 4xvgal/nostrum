@@ -1,4 +1,4 @@
-# Nostrum — Privacy Roadmap
+# NostrTun — Privacy Roadmap
 
 Future metadata-hardening ideas that fit the existing hexagonal
 boundary. Scope: **client-side, latency-neutral, adapter-level**.
@@ -37,7 +37,7 @@ out to all N; only the real recipient's NIP-44 decrypt succeeds (fast
 MAC-reject on decoys, ~0.1 ms).
 
 - **Plug**: `CryptoPort.wrap()` grows an optional `decoyPubkeys` arg,
-  or `NostrumClient` wires a `DecoyPoolPort`.
+  or `NostrTunClient` wires a `DecoyPoolPort`.
 - **Hides**: recipient identity; anonymity set = N.
 - **Cost**: relay-side bandwidth ×N, per-decoy one failed decrypt.
 - **Latency**: 0 on the real path.

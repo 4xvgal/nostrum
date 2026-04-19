@@ -1,5 +1,5 @@
 {
-  "name": "@nostrum/nostr-tools-adapters",
+  "name": "@nostr-tun/nostr-tools-adapters",
   "version": "0.0.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -12,9 +12,9 @@
     }
   },
   "dependencies": {
-    "@nostrum/core": "workspace:*",
-    "@nostrum/server": "workspace:*",
-    "@nostrum/client": "workspace:*",
+    "@nostr-tun/core": "workspace:*",
+    "@nostr-tun/server": "workspace:*",
+    "@nostr-tun/client": "workspace:*",
     "nostr-tools": "^2.10.0"
   },
   "files": ["src"],

@@ -1,12 +1,12 @@
 import NDK, { NDKEvent, NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import type { NDKSigner, NDKUser } from '@nostr-dev-kit/ndk'
 import {
-  KINDS_NOSTRUM,
+  KINDS_NOSTR_TUN,
   type CryptoPort,
   type KindSet,
   type NostrRequest,
   type NostrResponse,
-} from '@nostrum/core'
+} from '@nostr-tun/core'
 import { decodeBody, encodeBody } from './body-codec.js'
 
 const SEAL_KIND = 13
@@ -25,7 +25,7 @@ type RumorContent = {
 export class NdkCryptoAdapter implements CryptoPort {
   constructor(
     private readonly ndk: NDK,
-    private readonly kinds: KindSet = KINDS_NOSTRUM,
+    private readonly kinds: KindSet = KINDS_NOSTR_TUN,
   ) {}
 
   async wrap(

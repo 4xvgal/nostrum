@@ -4,24 +4,24 @@ import {
   NdkCryptoAdapter,
   NdkRelayAdapter,
   NdkTransportAdapter,
-} from '@nostrum/ndk-adapters'
+} from '@nostr-tun/ndk-adapters'
 import {
   NostrToolsCryptoAdapter,
   NostrToolsRelayAdapter,
   NostrToolsTransportAdapter,
-} from '@nostrum/nostr-tools-adapters'
-import type { CryptoPort } from '@nostrum/core'
+} from '@nostr-tun/nostr-tools-adapters'
+import type { CryptoPort } from '@nostr-tun/core'
 import {
   HonoAdapter,
   InMemoryStorageAdapter,
-  Nostrum,
+  NostrTun,
   type RelayPort,
-} from '@nostrum/server'
+} from '@nostr-tun/server'
 import {
-  NostrumClient,
-  type NostrumClientConfig,
+  NostrTunClient,
+  type NostrTunClientConfig,
   type TransportPort,
-} from '@nostrum/client'
+} from '@nostr-tun/client'
 
 export const RELAY_URL = process.env.RELAY_URL ?? 'ws://localhost:7777'
 export const HTTP_PORT = Number(process.env.HTTP_PORT ?? 3000)
@@ -42,12 +42,12 @@ function pickAdapter(env: string, fallback: AdapterChoice): AdapterChoice {
 }
 
 export function readAdapterSelection(): AdapterSelection {
-  const all = process.env.NOSTRUM_ADAPTERS
+  const all = process.env.NOSTR_TUN_ADAPTERS
   const fallback: AdapterChoice = all === 'ndk' ? 'ndk' : 'nostr-tools'
   return {
-    crypto: pickAdapter('NOSTRUM_CRYPTO', fallback),
-    relay: pickAdapter('NOSTRUM_RELAY', fallback),
-    transport: pickAdapter('NOSTRUM_TRANSPORT', fallback),
+    crypto: pickAdapter('NOSTR_TUN_CRYPTO', fallback),
+    relay: pickAdapter('NOSTR_TUN_RELAY', fallback),
+    transport: pickAdapter('NOSTR_TUN_TRANSPORT', fallback),
   }
 }
 
@@ -121,8 +121,8 @@ async function stopRelay(): Promise<void> {
 
 export type SmokeEnv = {
   app: Hono
-  nostrum: Nostrum
-  client: NostrumClient
+  tunnel: NostrTun
+  client: NostrTunClient
   httpServer: ReturnType<typeof Bun.serve>
   adapters: AdapterSelection
   keys: {
@@ -138,7 +138,7 @@ export type SmokeEnv = {
 const skipDocker = (): boolean => process.env.SKIP_DOCKER === '1'
 
 export async function setupEnv(
-  clientConfig: Omit<NostrumClientConfig, 'secretKey'> = { ttl: 30 },
+  clientConfig: Omit<NostrTunClientConfig, 'secretKey'> = { ttl: 30 },
 ): Promise<SmokeEnv> {
   if (!skipDocker()) await startRelay()
   try {
@@ -175,7 +175,7 @@ async function withTimeout<T>(
 }
 
 async function buildEnv(
-  clientConfig: Omit<NostrumClientConfig, 'secretKey'>,
+  clientConfig: Omit<NostrTunClientConfig, 'secretKey'>,
 ): Promise<SmokeEnv> {
   const adapters = readAdapterSelection()
   logStep(`relay=${RELAY_URL} httpPort=${HTTP_PORT}`)
@@ -219,7 +219,7 @@ async function buildEnv(
       ? new NdkRelayAdapter(serverNdk!, serverPk)
       : new NostrToolsRelayAdapter(RELAY_URL, serverPk)
 
-  const nostrum = new Nostrum({
+  const tunnel = new NostrTun({
     relays: [RELAY_URL],
     secretKey: serverSk,
     ttl: 60,
@@ -231,12 +231,12 @@ async function buildEnv(
     .useHttp(new HonoAdapter())
     .attachApp(app)
 
-  app.use('*', nostrum.advertise())
-  app.get('/.well-known/nostrum.json', nostrum.manifest())
+  app.use('*', tunnel.advertise())
+  app.get('/.well-known/nostr-tun.json', tunnel.manifest())
 
   const transports: string[] = []
-  app.post('/v1/echo', nostrum.route(), async (c) => {
-    const principal = c.req.header('x-nostrum-principal')
+  app.post('/v1/echo', tunnel.route(), async (c) => {
+    const principal = c.req.header('x-nostr-tun-principal')
     transports.push(principal ? 'nostr' : 'http')
     const body = await c.req.text()
     return c.json({ echoed: body, principal: principal ?? null })
@@ -246,9 +246,9 @@ async function buildEnv(
   const httpServer = Bun.serve({ port: HTTP_PORT, fetch: app.fetch })
   logStep('HTTP server ready')
 
-  logStep('nostrum.connect() — server-side relay subscribe')
+  logStep('tunnel.connect() — server-side relay subscribe')
   const connectStart = Date.now()
-  await withTimeout('nostrum.connect', nostrum.connect(), 15000)
+  await withTimeout('tunnel.connect', tunnel.connect(), 15000)
   logStep(`server subscribed (${Date.now() - connectStart}ms)`)
 
   const clientCrypto: CryptoPort =
@@ -260,17 +260,17 @@ async function buildEnv(
       ? new NdkTransportAdapter(clientNdk!, clientPk)
       : new NostrToolsTransportAdapter(RELAY_URL, clientPk)
 
-  const client = new NostrumClient({
+  const client = new NostrTunClient({
     secretKey: clientSk,
     ...clientConfig,
   })
     .useTransport(clientTransport)
     .useCrypto(clientCrypto)
-  logStep('NostrumClient built (client transport connects lazily on first fetch)')
+  logStep('NostrTunClient built (client transport connects lazily on first fetch)')
 
   const shutdown = async (): Promise<void> => {
     await client.disconnect()
-    await nostrum.disconnect()
+    await tunnel.disconnect()
     httpServer.stop()
     await new Promise((r) => setTimeout(r, 100))
     if (!skipDocker()) await stopRelay()
@@ -278,7 +278,7 @@ async function buildEnv(
 
   return {
     app,
-    nostrum,
+    tunnel,
     client,
     httpServer,
     adapters,
