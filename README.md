@@ -19,6 +19,26 @@ no server IP exposed to clients.
                                                                no public IP
 ```
 
+The app shell and the API are independent channels. Web clients pull
+static assets from any CDN; native mobile apps skip that step entirely.
+Either way, every API call goes through Nostr to a server that never
+exposes a public IP:
+
+```
+ ┌────────────┐   HTTPS (web clients only)     ┌──────────────┐
+ │  browser   │ ─── HTML · JS · CSS ────────── │ static host  │   any CDN
+ │    PWA     │                                 └──────────────┘   (you don't
+ │ mobile app │                                                     own this)
+ │            │   NIP-59 wrap                   ┌────────┐    ┌──────────┐
+ │            │ ─── every API call ───────────▶ │ public │ ─▶ │ your API │
+ │            │                                 │ relay  │    │ (Hono)   │
+ │            │ ◀── every response ─────────── │  (wss) │ ◀─ │          │
+ └────────────┘                                 └────────┘    └──────────┘
+                                                              no public IP
+                                                              no DNS · no TLS
+                                                              no cert rotation
+```
+
 The motivation is the same reason people run services as Telegram bots:
 you get a callable endpoint without ever exposing the machine's real IP
 — the messaging layer handles reachability. NostrTun does this over
@@ -26,6 +46,23 @@ Nostr instead of a centralized platform, so identity stays with a
 pubkey you control and the relay is swappable.
 
 ## Why
+
+```
+ traditional stack:                      with nostr-tun:
+ ─────────────────                       ──────────────
+
+ browser ──HTTPS──▶ web app   (public)   browser ──HTTPS──▶ CDN   (public,
+                                                                   rented)
+ browser ──HTTPS──▶ API       (public)
+                                         browser ──NIP-59──▶ relay
+ both public boxes need:                                     │
+   · public IP                                               ▼
+   · DNS record                                          your API
+   · TLS cert + renewal                                  ─────────
+   · inbound firewall rule                                · NAT-bound
+                                                          · outbound-only
+                                                          · no IP/DNS/TLS
+```
 
 Traditional HTTP couples server **identity** to **network location**:
 clients talk to `api.example.com` resolved to an IP, authenticated by a
@@ -45,6 +82,28 @@ anonymous at the relay level (wraps are signed by per-request ephemeral
 keys). Server pubkey and timing/size are still exposed — see
 [`doc/NOSTR_TUN_PRIVACY.md`](doc/NOSTR_TUN_PRIVACY.md) for the padding +
 decoy-tag roadmap.
+
+## What you write
+
+A normal Hono route, unchanged. One middleware makes it also callable
+over Nostr; the handler never sees wrap/unwrap.
+
+```ts
+app.post('/v1/hello', tunnel.route(), (c) => c.text('hi'))
+//                    ^^^^^^^^^^^^^^^
+//                    the only line that exposes this route over Nostr.
+//                    Remove it and the endpoint becomes HTTPS-only again.
+```
+
+- **No protocol code in handlers.** Routes receive a regular `Request`
+  and return a regular `Response`. Wrap/unwrap lives behind
+  `tunnel.route()`.
+- **Both channels, one codebase.** The Hono app keeps serving plain
+  HTTP on its bound port. Expose HTTPS-only, Nostr-only, or both —
+  a deployment choice, not a code change.
+- **Reachable by pubkey OR by URL.** Clients that have the server's
+  pubkey use the tunnel; clients hitting the HTTPS endpoint get an
+  identical response from the same handler.
 
 ## Positioning
 
