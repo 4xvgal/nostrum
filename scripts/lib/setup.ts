@@ -2,20 +2,52 @@ import { Hono } from 'hono'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
 import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
 import {
+  NostrToolsCryptoAdapter,
+  NostrToolsRelayAdapter,
+  NostrToolsTransportAdapter,
+} from '@nostrum/nostr-tools-adapters'
+import type { CryptoPort } from '@nostrum/core'
+import {
   HonoAdapter,
   InMemoryStorageAdapter,
   NdkRelayAdapter,
   Nostrum,
+  type RelayPort,
 } from '@nostrum/server'
 import {
   NdkTransportAdapter,
   NostrumClient,
   type NostrumClientConfig,
+  type TransportPort,
 } from '@nostrum/client'
 
 export const RELAY_URL = process.env.RELAY_URL ?? 'ws://localhost:7777'
 export const HTTP_PORT = Number(process.env.HTTP_PORT ?? 3000)
 export const ORIGIN = `http://localhost:${HTTP_PORT}`
+
+type AdapterChoice = 'ndk' | 'nostr-tools'
+
+export type AdapterSelection = {
+  crypto: AdapterChoice
+  relay: AdapterChoice
+  transport: AdapterChoice
+}
+
+function pickAdapter(env: string, fallback: AdapterChoice): AdapterChoice {
+  const v = process.env[env]
+  if (v === 'nostr-tools' || v === 'ndk') return v
+  return fallback
+}
+
+export function readAdapterSelection(): AdapterSelection {
+  const all = process.env.NOSTRUM_ADAPTERS
+  const fallback: AdapterChoice = all === 'nostr-tools' ? 'nostr-tools' : 'ndk'
+  return {
+    crypto: pickAdapter('NOSTRUM_CRYPTO', fallback),
+    relay: pickAdapter('NOSTRUM_RELAY', fallback),
+    transport: pickAdapter('NOSTRUM_TRANSPORT', fallback),
+  }
+}
 
 async function runCmd(argv: string[]): Promise<void> {
   const proc = Bun.spawn(argv, { stdout: 'inherit', stderr: 'inherit' })
@@ -90,6 +122,7 @@ export type SmokeEnv = {
   nostrum: Nostrum
   client: NostrumClient
   httpServer: ReturnType<typeof Bun.serve>
+  adapters: AdapterSelection
   keys: {
     clientPk: string
     clientSk: string
@@ -142,7 +175,11 @@ async function withTimeout<T>(
 async function buildEnv(
   clientConfig: Omit<NostrumClientConfig, 'secretKey'>,
 ): Promise<SmokeEnv> {
+  const adapters = readAdapterSelection()
   logStep(`relay=${RELAY_URL} httpPort=${HTTP_PORT}`)
+  logStep(
+    `adapters crypto=${adapters.crypto} relay=${adapters.relay} transport=${adapters.transport}`,
+  )
 
   const clientSigner = NDKPrivateKeySigner.generate()
   const serverSigner = NDKPrivateKeySigner.generate()
@@ -154,25 +191,40 @@ async function buildEnv(
     `keys client=${clientPk.slice(0, 12)} server=${serverPk.slice(0, 12)}`,
   )
 
-  const serverNdk = new NDK({
-    explicitRelayUrls: [RELAY_URL],
-    signer: serverSigner,
-  })
-  const clientNdk = new NDK({
-    explicitRelayUrls: [RELAY_URL],
-    signer: clientSigner,
-  })
-  logStep('NDK instances created')
+  const serverNeedsNdk =
+    adapters.crypto === 'ndk' || adapters.relay === 'ndk'
+  const clientNeedsNdk =
+    adapters.crypto === 'ndk' || adapters.transport === 'ndk'
+
+  const serverNdk = serverNeedsNdk
+    ? new NDK({ explicitRelayUrls: [RELAY_URL], signer: serverSigner })
+    : null
+  const clientNdk = clientNeedsNdk
+    ? new NDK({ explicitRelayUrls: [RELAY_URL], signer: clientSigner })
+    : null
+  logStep(
+    `NDK instances: server=${serverNdk ? 'yes' : 'no'} client=${clientNdk ? 'yes' : 'no'}`,
+  )
 
   const app = new Hono()
+
+  const serverCrypto: CryptoPort =
+    adapters.crypto === 'ndk'
+      ? new NdkCryptoAdapter(serverNdk!)
+      : new NostrToolsCryptoAdapter()
+  const serverRelay: RelayPort =
+    adapters.relay === 'ndk'
+      ? new NdkRelayAdapter(serverNdk!, serverPk)
+      : new NostrToolsRelayAdapter(RELAY_URL, serverPk)
+
   const nostrum = new Nostrum({
     relays: [RELAY_URL],
     secretKey: serverSk,
     ttl: 60,
     pubkey: serverPk,
   })
-    .useRelay(new NdkRelayAdapter(serverNdk, serverPk))
-    .useCrypto(new NdkCryptoAdapter(serverNdk))
+    .useRelay(serverRelay)
+    .useCrypto(serverCrypto)
     .useStorage(new InMemoryStorageAdapter())
     .useHttp(new HonoAdapter())
     .attachApp(app)
@@ -197,12 +249,21 @@ async function buildEnv(
   await withTimeout('nostrum.connect', nostrum.connect(), 15000)
   logStep(`server subscribed (${Date.now() - connectStart}ms)`)
 
+  const clientCrypto: CryptoPort =
+    adapters.crypto === 'ndk'
+      ? new NdkCryptoAdapter(clientNdk!)
+      : new NostrToolsCryptoAdapter()
+  const clientTransport: TransportPort =
+    adapters.transport === 'ndk'
+      ? new NdkTransportAdapter(clientNdk!, clientPk)
+      : new NostrToolsTransportAdapter(RELAY_URL, clientPk)
+
   const client = new NostrumClient({
     secretKey: clientSk,
     ...clientConfig,
   })
-    .useTransport(new NdkTransportAdapter(clientNdk, clientPk))
-    .useCrypto(new NdkCryptoAdapter(clientNdk))
+    .useTransport(clientTransport)
+    .useCrypto(clientCrypto)
   logStep('NostrumClient built (client transport connects lazily on first fetch)')
 
   const shutdown = async (): Promise<void> => {
@@ -218,6 +279,7 @@ async function buildEnv(
     nostrum,
     client,
     httpServer,
+    adapters,
     keys: { clientPk, clientSk, serverPk, serverSk },
     transports,
     shutdown,

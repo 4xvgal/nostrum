@@ -9,6 +9,7 @@
         "@nostrum/client": "workspace:*",
         "@nostrum/core": "workspace:*",
         "@nostrum/ndk-adapters": "workspace:*",
+        "@nostrum/nostr-tools-adapters": "workspace:*",
         "@nostrum/server": "workspace:*",
         "@types/bun": "^1.1.13",
         "hono": "^4.6.0",
@@ -38,6 +39,16 @@
       "dependencies": {
         "@nostr-dev-kit/ndk": "^2.12.0",
         "@nostrum/core": "workspace:*",
+      },
+    },
+    "packages/nostr-tools-adapters": {
+      "name": "@nostrum/nostr-tools-adapters",
+      "version": "0.0.0",
+      "dependencies": {
+        "@nostrum/client": "workspace:*",
+        "@nostrum/core": "workspace:*",
+        "@nostrum/server": "workspace:*",
+        "nostr-tools": "^2.10.0",
       },
     },
     "packages/server": {
@@ -73,6 +84,8 @@
     "@nostrum/core": ["@nostrum/core@workspace:packages/core"],
 
     "@nostrum/ndk-adapters": ["@nostrum/ndk-adapters@workspace:packages/ndk-adapters"],
+
+    "@nostrum/nostr-tools-adapters": ["@nostrum/nostr-tools-adapters@workspace:packages/nostr-tools-adapters"],
 
     "@nostrum/server": ["@nostrum/server@workspace:packages/server"],
 

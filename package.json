@@ -18,6 +18,7 @@
     "@types/bun": "^1.1.13",
     "@nostrum/core": "workspace:*",
     "@nostrum/ndk-adapters": "workspace:*",
+    "@nostrum/nostr-tools-adapters": "workspace:*",
     "@nostrum/server": "workspace:*",
     "@nostrum/client": "workspace:*",
     "@nostr-dev-kit/ndk": "^2.12.0",

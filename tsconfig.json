@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/core" },
     { "path": "packages/ndk-adapters" },
+    { "path": "packages/nostr-tools-adapters" },
     { "path": "packages/server" },
     { "path": "packages/client" }
   ]

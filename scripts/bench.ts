@@ -15,8 +15,10 @@ async function main(): Promise<void> {
     relays: [RELAY_URL],
   })
 
+  const a = env.adapters
   console.log(
-    `[bench] N=${N} warmup=${WARMUP}  relay=${RELAY_URL}  origin=${ORIGIN}`,
+    `[bench] N=${N} warmup=${WARMUP}  relay=${RELAY_URL}  origin=${ORIGIN}  ` +
+      `adapters=[crypto=${a.crypto} relay=${a.relay} transport=${a.transport}]`,
   )
 
   const httpStats = await benchOne(

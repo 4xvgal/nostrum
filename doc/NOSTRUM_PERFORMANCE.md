@@ -79,6 +79,50 @@ request/response RPC.
 - **Estimated savings: 200–400 ms**.
 - No core / port changes needed (hexagonal payoff).
 
+#### Update — measured
+
+Implemented as `@nostrum/nostr-tools-adapters`. `scripts/lib/setup.ts`
+selects adapters per port via `NOSTRUM_CRYPTO` / `NOSTRUM_RELAY` /
+`NOSTRUM_TRANSPORT` (each `ndk|nostr-tools`; default `ndk`), plus a
+convenience `NOSTRUM_ADAPTERS=nostr-tools` that sets all three.
+
+Same local `nostr-rs-relay` in Docker, `N=100` iterations, same machine,
+same commit, same process lifetime. Mean / p50 / p95 of the Nostr column:
+
+| Crypto | Relay | Transport | mean | p50 | p95 |
+|---|---|---|---:|---:|---:|
+| ndk | ndk | ndk | 872.8 | 865.5 | 904.3 |
+| **nt** | ndk | ndk | 868.8 | 863.7 | 894.1 |
+| ndk | **nt** | ndk | 464.0 | 463.9 | 479.7 |
+| ndk | ndk | **nt** | 454.7 | 452.8 | 469.4 |
+| ndk | **nt** | **nt** | 31.3 | 31.2 | 34.9 |
+| **nt** | **nt** | **nt** | 36.7 | 36.7 | 40.0 |
+
+Readings:
+
+- Crypto swap alone saves ~4 ms. Crypto is not the bottleneck, exactly
+  as the per-layer microbench predicted.
+- Relay-only swap saves ~409 ms; Transport-only swap saves ~418 ms.
+  NDK's subscription pipeline contributes **~400 ms per direction, per
+  request** — symmetric on client and server.
+- Swapping both Relay and Transport (keeping NDK crypto) collapses the
+  round-trip to ~31 ms. Adding the nostr-tools crypto swap on top lands
+  at ~37 ms — the small delta is within noise.
+- At 37 ms we are below the "Physical lower bound (WS × 2 +
+  scheduling) ~20–50 ms" target in the table below. P2 (relay
+  ephemeral fast path) and P3 are now into microbench territory; P4
+  (session mode) becomes the main throughput lever, not P2.
+
+Reproduce:
+
+```
+bun run bench                              # NDK baseline
+NOSTRUM_ADAPTERS=nostr-tools bun run bench # full swap
+NOSTRUM_CRYPTO=nostr-tools   bun run bench # attribute crypto
+NOSTRUM_RELAY=nostr-tools    bun run bench # attribute server-side WS
+NOSTRUM_TRANSPORT=nostr-tools bun run bench # attribute client-side WS
+```
+
 ### P2 — Relay signature-verification fast path
 
 The relay still Schnorr-verifies every incoming event on the hot path.
