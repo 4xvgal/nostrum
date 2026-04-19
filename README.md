@@ -156,6 +156,12 @@ bun run bench-remote    # same, against a public relay
 Set `NOSTR_TUN_ADAPTERS=ndk` to switch the harness to the NDK adapters.
 `NOSTRUM_{CRYPTO,RELAY,TRANSPORT}=ndk|nostr-tools` let you mix per port.
 
+## Examples
+
+- [`packages/examples/btc-alert-bot`](packages/examples/btc-alert-bot) —
+  BTC price-alert bot. Hono server + TUI-styled PWA; management API over
+  Nostr (with NIP-98 auth), alerts delivered as Nostr DMs.
+
 ## Docs
 
 - [`doc/NOSTR_TUN_PRIVACY.md`](doc/NOSTR_TUN_PRIVACY.md) — metadata-hardening roadmap

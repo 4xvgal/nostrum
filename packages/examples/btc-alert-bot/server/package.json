@@ -1,0 +1,21 @@
+{
+  "name": "@nostr-tun-examples/btc-alert-bot-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "gen-keys": "bun run scripts/gen-keys.ts",
+    "gen-keys:env": "bun run scripts/gen-keys.ts --env",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@nostr-tun/core": "workspace:*",
+    "@nostr-tun/server": "workspace:*",
+    "@nostr-tun/nostr-tools-adapters": "workspace:*",
+    "@noble/hashes": "^1.5.0",
+    "hono": "^4.6.0",
+    "nostr-tools": "^2.10.0"
+  }
+}

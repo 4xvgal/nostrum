@@ -1,0 +1,11 @@
+{
+  "name": "@nostr-tun-examples/btc-alert-bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "bun run server/src/index.ts",
+    "web": "bun --cwd web run dev",
+    "web:build": "bun --cwd web run build"
+  }
+}

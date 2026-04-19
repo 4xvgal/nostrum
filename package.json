@@ -2,13 +2,19 @@
   "name": "nostr-tun",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*",
+    "packages/examples/*",
+    "packages/examples/*/server",
+    "packages/examples/*/web"
+  ],
   "scripts": {
     "typecheck": "tsc -b",
     "test": "bun test",
     "smoke": "bun run scripts/smoke.ts",
     "smoke:https": "bun run scripts/smoke-https-first.ts",
     "smoke:strict": "bun run scripts/smoke-strict.ts",
+    "smoke:discovery": "bun run scripts/smoke-discovery.ts",
     "bench": "bun run scripts/bench.ts",
     "bench-nostream": "bun run scripts/bench-nostream.ts",
     "bench-remote": "RELAY_URL=wss://nostr.vulpem.com SKIP_DOCKER=1 bun run scripts/bench-remote.ts"
@@ -22,7 +28,9 @@
     "@nostr-tun/server": "workspace:*",
     "@nostr-tun/client": "workspace:*",
     "@nostr-dev-kit/ndk": "^2.12.0",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "nostr-tools": "^2.10.0",
+    "@noble/hashes": "^1.5.0"
   },
   "engines": {
     "bun": ">=1.1.30"

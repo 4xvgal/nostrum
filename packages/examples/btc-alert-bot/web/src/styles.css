@@ -1,0 +1,160 @@
+:root {
+  --bg: #0a0e12;
+  --fg: #c9d4de;
+  --muted: #6b7a87;
+  --dim: #3b4750;
+  --up: #7ee787;
+  --down: #ff7b72;
+  --accent: #f0b840;
+  --border: #1b2229;
+  --font-mono: ui-monospace, 'Berkeley Mono', 'JetBrains Mono',
+    'IBM Plex Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.45;
+  min-height: 100vh;
+}
+
+body {
+  padding: 18px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}
+
+button {
+  cursor: pointer;
+}
+button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+a {
+  color: var(--accent);
+}
+
+.panel {
+  border: 1px solid var(--border);
+  padding: 10px 14px 12px;
+  margin-bottom: 14px;
+  white-space: pre;
+}
+
+.panel-title {
+  color: var(--muted);
+  margin: -10px 0 10px;
+  font-weight: normal;
+}
+
+.panel-title::before {
+  content: '╭─ ';
+  color: var(--dim);
+}
+.panel-title::after {
+  content: ' ──';
+  color: var(--dim);
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.price-line {
+  font-size: 22px;
+  letter-spacing: 0.02em;
+}
+
+.up {
+  color: var(--up);
+}
+.down {
+  color: var(--down);
+}
+.dim {
+  color: var(--dim);
+}
+.muted {
+  color: var(--muted);
+}
+
+.statusbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  padding: 4px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.dot {
+  color: var(--up);
+}
+.dot.off {
+  color: var(--down);
+}
+
+.log {
+  font-size: 12px;
+  color: var(--muted);
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre;
+}
+
+.sub-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 0;
+}
+.sub-row .x {
+  color: var(--down);
+  cursor: pointer;
+  user-select: none;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.prompt {
+  color: var(--accent);
+}

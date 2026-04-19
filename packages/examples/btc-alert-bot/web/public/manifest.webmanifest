@@ -1,0 +1,10 @@
+{
+  "name": "btc-alert",
+  "short_name": "btc-alert",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e12",
+  "theme_color": "#0a0e12",
+  "description": "Terminal-styled BTC price alerts over Nostr.",
+  "icons": []
+}
