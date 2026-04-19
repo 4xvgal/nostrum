@@ -1,7 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useEffect, useMemo, useState } from 'preact/hooks'
 import type { NostrTunClient } from '@nostr-tun/client'
 import { buildClient, config } from './tunnel.js'
-import { loadOrCreateKeys } from './keys.js'
+import {
+  clearNotifyOverride,
+  importSecretKey,
+  loadOrCreateIdentity,
+  resetIdentity,
+  setNotifyPubkey,
+  type Identity,
+} from './keys.js'
 import {
   createSubscription,
   deleteSubscription,
@@ -32,12 +39,20 @@ function sparkline(samples: number[]): string {
     .join('')
 }
 
-function shortPk(pk: string): string {
-  return pk.slice(0, 8) + '…' + pk.slice(-4)
+function shortBech(s: string): string {
+  return s.length <= 20 ? s : s.slice(0, 12) + '…' + s.slice(-6)
+}
+
+async function copy(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    // clipboard API not available (e.g. insecure context) — ignore
+  }
 }
 
 export function App() {
-  const keys = useMemo(() => loadOrCreateKeys(), [])
+  const identity = useMemo<Identity>(() => loadOrCreateIdentity(), [])
   const [client, setClient] = useState<NostrTunClient | null>(null)
   const [bootError, setBootError] = useState<string | null>(null)
   const [price, setPrice] = useState<Price | null>(null)
@@ -49,6 +64,10 @@ export function App() {
   const [threshold, setThreshold] = useState('5')
   const [direction, setDirection] = useState<'up' | 'down' | 'both'>('both')
   const [windowSec, setWindowSec] = useState('86400')
+  const [showNsec, setShowNsec] = useState(false)
+  const [nsecInput, setNsecInput] = useState('')
+  const [notifyInput, setNotifyInput] = useState('')
+  const [identityError, setIdentityError] = useState<string | null>(null)
 
   const logLine = (text: string): void =>
     setLog((prev) => [...prev.slice(-40), { at: Date.now(), text }])
@@ -72,7 +91,7 @@ export function App() {
     try {
       const [p, s] = await Promise.all([
         getPrice(c),
-        listSubscriptions(c, keys.sk),
+        listSubscriptions(c, identity.sk),
       ])
       setPrice(p)
       setHistory((h) => [...h.slice(-47), p.usd])
@@ -92,21 +111,25 @@ export function App() {
 
   useEffect(() => {
     if (!client) return
+    if (identity.separateNotify) {
+      logLine('notify pubkey differs from auth — DMs will not decrypt here')
+      return
+    }
     let cancel: (() => void) | undefined
     void (async () => {
       cancel = await subscribeDms({
-        recipientSk: keys.sk,
-        recipientPk: keys.pk,
+        recipientSk: identity.sk,
+        recipientPk: identity.notifyPk,
         onDm: (dm) => {
           setDms((prev) => [dm, ...prev].slice(0, 20))
-          logLine(`dm ← ${shortPk(dm.from)}`)
+          logLine(`dm ← ${shortBech(dm.from)}`)
         },
         onError: (e) =>
           logLine(`dm decrypt error: ${e instanceof Error ? e.message : String(e)}`),
       })
     })()
     return () => cancel?.()
-  }, [client])
+  }, [client, identity.separateNotify])
 
   const onCreate = async (e: Event): Promise<void> => {
     e.preventDefault()
@@ -115,10 +138,11 @@ export function App() {
     try {
       const th = Number(threshold)
       const ws = Number(windowSec)
-      await createSubscription(client, keys.sk, {
+      await createSubscription(client, identity.sk, {
         threshold_pct: th,
         direction,
         window_sec: ws,
+        ...(identity.separateNotify ? { notify_pubkey: identity.notifyPk } : {}),
       })
       logLine(`subscribed ±${th}% ${direction} over ${ws}s`)
       await refresh(client)
@@ -133,7 +157,7 @@ export function App() {
     if (!client) return
     setBusy(true)
     try {
-      await deleteSubscription(client, keys.sk, id)
+      await deleteSubscription(client, identity.sk, id)
       logLine(`deleted ${id}`)
       await refresh(client)
     } catch (err) {
@@ -143,18 +167,45 @@ export function App() {
     }
   }
 
+  const onImportNsec = (e: Event): void => {
+    e.preventDefault()
+    setIdentityError(null)
+    try {
+      importSecretKey(nsecInput)
+      location.reload()
+    } catch (err) {
+      setIdentityError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const onSetNotify = (e: Event): void => {
+    e.preventDefault()
+    setIdentityError(null)
+    try {
+      setNotifyPubkey(notifyInput)
+      location.reload()
+    } catch (err) {
+      setIdentityError(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  const onClearNotify = (): void => {
+    clearNotifyOverride()
+    location.reload()
+  }
+
+  const onReset = (): void => {
+    if (!confirm('Wipe local auth key and any notify override? Existing server-side subscriptions will become unmanageable from this browser.'))
+      return
+    resetIdentity()
+    location.reload()
+  }
+
   if (bootError) {
     return (
       <div class="panel">
         <div class="panel-title">boot-error</div>
         <div class="down">{bootError}</div>
-        <div class="muted">
-          Create <code>web/.env.local</code> with:
-          {'\n'}
-          VITE_SERVER_PUBKEY=&lt;bot pubkey printed at server startup&gt;
-          {'\n'}
-          VITE_RELAY_URL=ws://localhost:7777
-        </div>
       </div>
     )
   }
@@ -180,6 +231,78 @@ export function App() {
         <div class="muted">
           as-of {price ? new Date(price.fetchedAt).toLocaleTimeString() : '—'}
         </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title">identity</div>
+        <div class="sub-row">
+          <span class="muted">auth npub:</span>
+          <span>{shortBech(identity.authNpub)}</span>
+          <span class="x" title="copy" onClick={() => void copy(identity.authNpub)}>
+            [copy]
+          </span>
+        </div>
+        <div class="sub-row">
+          <span class="muted">auth nsec:</span>
+          <span>{showNsec ? identity.authNsec : 'nsec1' + '•'.repeat(20)}</span>
+          <span class="x" onClick={() => setShowNsec((v) => !v)}>
+            [{showNsec ? 'hide' : 'show'}]
+          </span>
+          <span class="x" onClick={() => void copy(identity.authNsec)}>
+            [copy]
+          </span>
+        </div>
+        <div class="sub-row">
+          <span class="muted">notify npub:</span>
+          <span>
+            {identity.separateNotify
+              ? shortBech(identity.notifyNpub)
+              : '(same as auth)'}
+          </span>
+          {identity.separateNotify ? (
+            <>
+              <span class="x" onClick={() => void copy(identity.notifyNpub)}>
+                [copy]
+              </span>
+              <span class="x" onClick={onClearNotify}>
+                [clear]
+              </span>
+            </>
+          ) : null}
+        </div>
+        {identity.separateNotify ? (
+          <div class="muted">
+            DMs go to a pubkey this PWA has no secret for — open your Nostr
+            client on that npub to read alerts.
+          </div>
+        ) : null}
+
+        <form class="form-row" onSubmit={onImportNsec}>
+          <span class="prompt">&gt;</span>
+          <input
+            value={nsecInput}
+            onInput={(e) => setNsecInput((e.target as HTMLInputElement).value)}
+            placeholder="paste nsec1… or 64-hex — full identity (recommended)"
+            style="flex:1"
+            aria-label="import nsec"
+          />
+          <button type="submit">[import nsec]</button>
+        </form>
+        <form class="form-row" onSubmit={onSetNotify}>
+          <span class="prompt">&gt;</span>
+          <input
+            value={notifyInput}
+            onInput={(e) => setNotifyInput((e.target as HTMLInputElement).value)}
+            placeholder="paste npub1… or 64-hex — notify-only"
+            style="flex:1"
+            aria-label="set notify npub"
+          />
+          <button type="submit">[set notify]</button>
+          <button type="button" onClick={onReset}>
+            [reset]
+          </button>
+        </form>
+        {identityError ? <div class="down">{identityError}</div> : null}
       </section>
 
       <section class="panel">
@@ -240,7 +363,12 @@ export function App() {
 
       <section class="panel">
         <div class="panel-title">inbox</div>
-        {dms.length === 0 ? (
+        {identity.separateNotify ? (
+          <div class="muted">
+            inbox disabled — notify npub differs from auth (DMs won't decrypt
+            here).
+          </div>
+        ) : dms.length === 0 ? (
           <div class="muted">no alerts received yet</div>
         ) : (
           dms.map((d) => (
@@ -270,7 +398,7 @@ export function App() {
           {config.resolvedRelays[0] ?? `discovering via ${config.bootstrapRelays.length} relay(s)…`}
         </span>
         <span class="muted">
-          me: {shortPk(keys.pk)} · server: {shortPk(config.serverPubkey || '—')}
+          me: {shortBech(identity.authNpub)} · server: {shortBech(config.serverPubkey || '—')}
         </span>
       </div>
     </div>

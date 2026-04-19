@@ -2,6 +2,9 @@ export type Direction = 'up' | 'down' | 'both'
 
 export type Subscription = {
   id: string
+  /** Who manages this subscription (NIP-98 signer). */
+  ownerPubkey: string
+  /** Where alert DMs are delivered (may differ from owner). */
   notifyPubkey: string
   thresholdPct: number
   direction: Direction
@@ -14,9 +17,9 @@ export type Subscription = {
 
 const subs = new Map<string, Subscription>()
 
-export function listByPubkey(pubkey: string): Subscription[] {
+export function listByOwner(pubkey: string): Subscription[] {
   const out: Subscription[] = []
-  for (const s of subs.values()) if (s.notifyPubkey === pubkey) out.push(s)
+  for (const s of subs.values()) if (s.ownerPubkey === pubkey) out.push(s)
   return out
 }
 

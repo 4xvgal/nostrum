@@ -6,6 +6,7 @@ export type Price = { usd: number; change24hPct: number; fetchedAt: number }
 
 export type Subscription = {
   id: string
+  ownerPubkey: string
   notifyPubkey: string
   thresholdPct: number
   direction: 'up' | 'down' | 'both'
@@ -41,7 +42,12 @@ export async function listSubscriptions(
 export async function createSubscription(
   client: NostrTunClient,
   sk: Uint8Array,
-  body: { threshold_pct: number; direction: 'up' | 'down' | 'both'; window_sec: number },
+  body: {
+    threshold_pct: number
+    direction: 'up' | 'down' | 'both'
+    window_sec: number
+    notify_pubkey?: string
+  },
 ): Promise<Subscription> {
   const u = url('/v1/subscribe')
   const bodyText = JSON.stringify(body)
