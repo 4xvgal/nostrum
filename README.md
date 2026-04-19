@@ -158,8 +158,6 @@ Set `NOSTRUM_ADAPTERS=ndk` to switch the harness to the NDK adapters.
 
 ## Docs
 
-- [`doc/NOSTRUM_DESIGN.md`](doc/NOSTRUM_DESIGN.md) — protocol + hexagonal structure
-- [`doc/NOSTRUM_PERFORMANCE.md`](doc/NOSTRUM_PERFORMANCE.md) — latency analysis + NDK vs nostr-tools matrix
 - [`doc/NOSTRUM_PRIVACY.md`](doc/NOSTRUM_PRIVACY.md) — metadata-hardening roadmap
 - [`doc/NOSTRUM_DISCOVERY.md`](doc/NOSTRUM_DISCOVERY.md) — HTTPS-first bootstrap + manifest
 - [`doc/NOSTRUM_MILESTONES.md`](doc/NOSTRUM_MILESTONES.md) — development phases
