@@ -10,7 +10,7 @@ export function encodeBody(body: Uint8Array | null): {
     const text = new TextDecoder('utf-8', { fatal: true }).decode(body)
     return { body: text, bodyEncoding: 'utf8' }
   } catch {
-    return { body: Buffer.from(body).toString('base64'), bodyEncoding: 'base64' }
+    return { body: u8ToBase64(body), bodyEncoding: 'base64' }
   }
 }
 
@@ -24,8 +24,20 @@ export function decodeBody(
     return new TextEncoder().encode(body)
   }
   if (bodyEncoding === 'base64') {
-    const buf = Buffer.from(body, 'base64')
-    return new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+    return base64ToU8(body)
   }
   return null
+}
+
+function u8ToBase64(u8: Uint8Array): string {
+  let bin = ''
+  for (let i = 0; i < u8.length; i++) bin += String.fromCharCode(u8[i]!)
+  return btoa(bin)
+}
+
+function base64ToU8(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const u8 = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i)
+  return u8
 }
