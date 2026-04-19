@@ -1,6 +1,10 @@
 import { Hono } from 'hono'
 import NDK, { NDKPrivateKeySigner } from '@nostr-dev-kit/ndk'
-import { NdkCryptoAdapter } from '@nostrum/ndk-adapters'
+import {
+  NdkCryptoAdapter,
+  NdkRelayAdapter,
+  NdkTransportAdapter,
+} from '@nostrum/ndk-adapters'
 import {
   NostrToolsCryptoAdapter,
   NostrToolsRelayAdapter,
@@ -10,12 +14,10 @@ import type { CryptoPort } from '@nostrum/core'
 import {
   HonoAdapter,
   InMemoryStorageAdapter,
-  NdkRelayAdapter,
   Nostrum,
   type RelayPort,
 } from '@nostrum/server'
 import {
-  NdkTransportAdapter,
   NostrumClient,
   type NostrumClientConfig,
   type TransportPort,
@@ -41,7 +43,7 @@ function pickAdapter(env: string, fallback: AdapterChoice): AdapterChoice {
 
 export function readAdapterSelection(): AdapterSelection {
   const all = process.env.NOSTRUM_ADAPTERS
-  const fallback: AdapterChoice = all === 'nostr-tools' ? 'nostr-tools' : 'ndk'
+  const fallback: AdapterChoice = all === 'ndk' ? 'ndk' : 'nostr-tools'
   return {
     crypto: pickAdapter('NOSTRUM_CRYPTO', fallback),
     relay: pickAdapter('NOSTRUM_RELAY', fallback),

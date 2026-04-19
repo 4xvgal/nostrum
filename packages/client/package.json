@@ -16,12 +16,12 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@nostrum/core": "workspace:*",
-    "@nostr-dev-kit/ndk": "^2.12.0"
+    "@nostrum/core": "workspace:*"
   },
   "devDependencies": {
     "@nostrum/ndk-adapters": "workspace:*",
     "@nostrum/server": "workspace:*",
+    "@nostr-dev-kit/ndk": "^2.12.0",
     "hono": "^4.6.0"
   }
 }

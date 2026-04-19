@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@nostrum/core": "workspace:*",
+    "@nostrum/server": "workspace:*",
+    "@nostrum/client": "workspace:*",
     "@nostr-dev-kit/ndk": "^2.12.0"
   },
   "files": ["src"],

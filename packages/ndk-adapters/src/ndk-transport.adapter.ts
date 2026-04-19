@@ -1,22 +1,22 @@
 import type NDK from '@nostr-dev-kit/ndk'
 import { NDKEvent, type NDKSubscription } from '@nostr-dev-kit/ndk'
 import { KINDS_NOSTRUM, type KindSet } from '@nostrum/core'
-import type { RelayPort } from '../../ports/relay.port.js'
+import type { TransportPort } from '@nostrum/client'
 
-export class NdkRelayAdapter implements RelayPort {
+export class NdkTransportAdapter implements TransportPort {
   #handler: ((bytes: Uint8Array) => void) | null = null
   #sub: NDKSubscription | null = null
 
   constructor(
     private readonly ndk: NDK,
-    private readonly serverPubkey: string,
+    private readonly clientPubkey: string,
     private readonly kinds: KindSet = KINDS_NOSTRUM,
   ) {}
 
   async connect(): Promise<void> {
     await this.ndk.connect()
     this.#sub = this.ndk.subscribe(
-      { kinds: [this.kinds.wrap], '#p': [this.serverPubkey] },
+      { kinds: [this.kinds.wrap], '#p': [this.clientPubkey] },
       { closeOnEose: false },
     )
     this.#sub.on('event', (evt) => {
