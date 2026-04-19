@@ -8,6 +8,17 @@ HTTP tunneled over Nostr. Reach an app server by its **pubkey**, not its
 IP or domain. End-to-end encrypted via NIP-59 gift wrap; no CA, no DNS,
 no server IP exposed to clients.
 
+```
+ ┌────────┐   encrypted wrap    ┌────────┐   encrypted wrap    ┌────────┐
+ │ client │ ── NIP-59 (req) ──▶ │ public │ ── NIP-59 (req) ──▶ │ server │
+ │        │                     │ relay  │                     │        │
+ │        │ ◀─ NIP-59 (res) ─── │  (ws)  │ ◀─ NIP-59 (res) ─── │        │
+ └────────┘                     └────────┘                     └────────┘
+  has: server pubkey            can't decrypt;                 Hono routes;
+       + relay URL              fans out by #p tag             behind NAT,
+                                                               no public IP
+```
+
 The motivation is the same reason people run services as Telegram bots:
 you get a callable endpoint without ever exposing the machine's real IP
 — the messaging layer handles reachability. NostrTun does this over
