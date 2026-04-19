@@ -1,5 +1,6 @@
-import type { Hono, MiddlewareHandler } from 'hono'
-import type { CryptoPort } from '@nostrum/core'
+import type { Handler, Hono, MiddlewareHandler } from 'hono'
+import type { CryptoPort, KindSet } from '@nostrum/core'
+import { KINDS_NIP80, KINDS_NOSTRUM } from '@nostrum/core'
 import type { RelayPort } from '../ports/relay.port.js'
 import type { StoragePort } from '../ports/storage.port.js'
 import type { HttpPort } from '../ports/http.port.js'
@@ -9,6 +10,25 @@ export type NostrumConfig = {
   relays: string[]
   secretKey: string
   ttl: number
+  pubkey: string
+  kinds?: KindSet
+  advertiseTtl?: number
+}
+
+type Manifest = {
+  version: '0.1'
+  pubkey: string
+  relays: string[]
+  ttl: number
+  capabilities: {
+    kindSet: 'nostrum' | 'nip80' | KindSet
+    chunking: boolean
+  }
+  routes: Array<{
+    method: string
+    path: string
+    kind: 'literal' | 'pattern'
+  }>
 }
 
 const ROUTE_MARKER = Symbol.for('@nostrum/route')
@@ -22,6 +42,7 @@ export class Nostrum {
   #http: HttpPort | null = null
   #correlation: CorrelationManager | null = null
   #app: Hono | null = null
+  #evictionTimer: ReturnType<typeof setInterval> | null = null
 
   constructor(private readonly config: NostrumConfig) {}
 
@@ -48,11 +69,79 @@ export class Nostrum {
   }
 
   route(): MiddlewareHandler {
-    const mw: MarkedMiddleware = async (_c, next) => {
+    const mw: MarkedMiddleware = async (c, next) => {
+      let fromNostr = false
+      try {
+        const ctx = c.executionCtx as unknown as
+          | { nostrumDispatch?: boolean }
+          | undefined
+        fromNostr = ctx?.nostrumDispatch === true
+      } catch {
+        // No executionCtx provided — this is plain HTTP.
+      }
+      if (!fromNostr) {
+        try {
+          c.req.raw.headers.delete('x-nostrum-principal')
+        } catch {
+          // forbidden-header or locked Headers — best-effort
+        }
+      }
       await next()
     }
     mw[ROUTE_MARKER] = true
     return mw
+  }
+
+  advertise(): MiddlewareHandler {
+    const ma = this.config.advertiseTtl ?? 300
+    const header = `pubkey=${this.config.pubkey}; relays=${this.config.relays.join(',')}; ma=${ma}`
+    return async (c, next) => {
+      await next()
+      c.header('Nostrum-Location', header)
+    }
+  }
+
+  manifest(): Handler {
+    return (c) => {
+      const body = this.#buildManifest()
+      const ma = this.config.advertiseTtl ?? 300
+      c.header('Cache-Control', `public, max-age=${ma}`)
+      c.header('Content-Type', 'application/json')
+      return c.body(JSON.stringify(body))
+    }
+  }
+
+  #buildManifest(): Manifest {
+    const kinds = this.config.kinds ?? KINDS_NOSTRUM
+    const ma = this.config.advertiseTtl ?? 300
+    const markedPairs = new Set<string>()
+    const app = this.#app
+    if (app) {
+      for (const r of app.routes) {
+        if (!(r.handler as MarkedMiddleware)[ROUTE_MARKER]) continue
+        markedPairs.add(`${r.method.toUpperCase()} ${r.path}`)
+      }
+    }
+    const routes: Manifest['routes'] = []
+    for (const pair of markedPairs) {
+      const [method, path] = splitPair(pair)
+      routes.push({
+        method,
+        path,
+        kind: path.includes(':') ? 'pattern' : 'literal',
+      })
+    }
+    return {
+      version: '0.1',
+      pubkey: this.config.pubkey,
+      relays: this.config.relays,
+      ttl: ma,
+      capabilities: {
+        kindSet: serializeKindSet(kinds),
+        chunking: false,
+      },
+      routes,
+    }
   }
 
   async connect(): Promise<void> {
@@ -66,9 +155,19 @@ export class Nostrum {
       void this.#dispatch(bytes)
     })
     await this.#relay.connect()
+
+    const intervalMs = Math.max((this.config.ttl || 30) * 1000, 1000)
+    this.#evictionTimer = setInterval(() => {
+      void this.#correlation?.evictExpired()
+    }, intervalMs)
+    ;(this.#evictionTimer as { unref?: () => void }).unref?.()
   }
 
   async disconnect(): Promise<void> {
+    if (this.#evictionTimer) {
+      clearInterval(this.#evictionTimer)
+      this.#evictionTimer = null
+    }
     await this.#relay?.disconnect()
   }
 
@@ -85,7 +184,11 @@ export class Nostrum {
 
       const webReq = this.#http!.toRequest(req)
       const webRes = this.#isRouteEnabled(req.method, req.path)
-        ? await this.#app!.fetch(webReq)
+        ? await this.#app!.fetch(
+            webReq,
+            undefined,
+            { nostrumDispatch: true } as never,
+          )
         : new Response(null, {
             status: 501,
             headers: { 'x-nostrum-error': 'route-not-enabled' },
@@ -118,6 +221,27 @@ export class Nostrum {
     }
     return false
   }
+}
+
+function splitPair(s: string): [string, string] {
+  const idx = s.indexOf(' ')
+  return [s.slice(0, idx), s.slice(idx + 1)]
+}
+
+function sameKindSet(a: KindSet, b: KindSet): boolean {
+  return (
+    a.requestRumor === b.requestRumor &&
+    a.responseRumor === b.responseRumor &&
+    a.wrap === b.wrap
+  )
+}
+
+function serializeKindSet(
+  kinds: KindSet,
+): 'nostrum' | 'nip80' | KindSet {
+  if (sameKindSet(kinds, KINDS_NOSTRUM)) return 'nostrum'
+  if (sameKindSet(kinds, KINDS_NIP80)) return 'nip80'
+  return kinds
 }
 
 function matchPath(pattern: string, path: string): boolean {

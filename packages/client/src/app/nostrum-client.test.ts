@@ -39,13 +39,23 @@ describe('NostrumClient (unit)', () => {
     )
   })
 
-  test('fetch throws for unpinned origin', async () => {
-    const c = new NostrumClient({ secretKey: 'sk', ttl: 10 })
-      .useTransport(stubTransport())
-      .useCrypto(stubCrypto())
-    await expect(c.fetch('https://unpinned.test/x')).rejects.toThrow(
-      /origin not pinned/,
-    )
+  test('unpinned origin falls back to HTTPS via globalThis.fetch', async () => {
+    const originalFetch = globalThis.fetch
+    let calledUrl: string | null = null
+    globalThis.fetch = (async (input: string | URL | Request) => {
+      calledUrl = typeof input === 'string' ? input : input.toString()
+      return new Response('ok', { status: 200 })
+    }) as typeof globalThis.fetch
+    try {
+      const c = new NostrumClient({ secretKey: 'sk', ttl: 10 })
+        .useTransport(stubTransport())
+        .useCrypto(stubCrypto())
+      const res = await c.fetch('https://unpinned.test/x')
+      expect(calledUrl).toBe('https://unpinned.test/x')
+      expect(res.status).toBe(200)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
   })
 
   test('pin overwrites previous ServerInfo for same origin', async () => {

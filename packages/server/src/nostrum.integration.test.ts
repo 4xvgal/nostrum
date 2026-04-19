@@ -92,7 +92,12 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
       void serverPk
 
       app = new Hono()
-      nostrum = new Nostrum({ relays: [], secretKey: serverSk, ttl: 60 })
+      nostrum = new Nostrum({
+        relays: [],
+        secretKey: serverSk,
+        ttl: 60,
+        pubkey: serverPk,
+      })
       relay = new FakeRelayAdapter()
       nostrum
         .useRelay(relay)

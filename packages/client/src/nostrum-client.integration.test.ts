@@ -104,7 +104,12 @@ for (const kinds of [KINDS_NOSTRUM, KINDS_NIP80] satisfies KindSet[]) {
       hub = new InMemoryHub()
 
       const app = new Hono()
-      server = new Nostrum({ relays: [], secretKey: serverSk, ttl: 60 })
+      server = new Nostrum({
+        relays: [],
+        secretKey: serverSk,
+        ttl: 60,
+        pubkey: serverPk,
+      })
         .useRelay(new HubServerRelay(hub, serverPk))
         .useCrypto(crypto)
         .useStorage(new InMemoryStorageAdapter())
