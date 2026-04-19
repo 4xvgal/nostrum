@@ -4,6 +4,9 @@ export type RelayFilter = {
 }
 
 type EventHandler = (bytes: Uint8Array) => void
+type PublishErrorHandler = (eventId: string, reason: string) => void
+
+const ACK_TTL_MS = 60_000
 
 export class WsClient {
   #ws: WebSocket | null = null
@@ -11,6 +14,8 @@ export class WsClient {
   #subId: string
   #filter: RelayFilter | null = null
   #handler: EventHandler | null = null
+  #publishErrorHandler: PublishErrorHandler | null = null
+  #pendingAck = new Map<string, number>()
   #connectPromise: Promise<void> | null = null
   #closed = false
 
@@ -50,15 +55,26 @@ export class WsClient {
     if (this.#ws && this.#ws.readyState === WebSocket.OPEN) this.#sendReq()
   }
 
+  onPublishError(handler: PublishErrorHandler): void {
+    this.#publishErrorHandler = handler
+  }
+
   publish(eventJson: string): void {
     if (!this.#ws || this.#ws.readyState !== WebSocket.OPEN) {
       throw new Error('ws not open; call connect() first')
+    }
+    const id = extractEventId(eventJson)
+    if (id) {
+      this.#pendingAck.set(id, Date.now() + ACK_TTL_MS)
+      this.#sweepOneExpired()
     }
     this.#ws.send(`["EVENT",${eventJson}]`)
   }
 
   async disconnect(): Promise<void> {
     this.#closed = true
+    this.#pendingAck.clear()
+    this.#publishErrorHandler = null
     if (!this.#ws) return
     try {
       if (this.#ws.readyState === WebSocket.OPEN) {
@@ -77,6 +93,15 @@ export class WsClient {
     this.#ws.send(frame)
   }
 
+  #sweepOneExpired(): void {
+    const now = Date.now()
+    // best-effort O(1) cleanup — drop at most one expired entry per insert
+    const first = this.#pendingAck.entries().next()
+    if (first.done) return
+    const [id, expiresAt] = first.value
+    if (expiresAt <= now) this.#pendingAck.delete(id)
+  }
+
   #onMessage(data: unknown): void {
     if (typeof data !== 'string') return
     let msg: unknown
@@ -91,7 +116,32 @@ export class WsClient {
       const eventJson = JSON.stringify(msg[2])
       // Synchronous dispatch — no queue, no coalescing (P1 contract)
       this.#handler?.(new TextEncoder().encode(eventJson))
+      return
     }
-    // EOSE / OK / NOTICE ignored for one-shot RPC
+    // ["OK", eventId, ok, msg] — async publish result (P1C control path)
+    if (msg[0] === 'OK' && typeof msg[1] === 'string') {
+      const id = msg[1]
+      if (!this.#pendingAck.delete(id)) return
+      if (msg[2] === false) {
+        const reason = typeof msg[3] === 'string' ? msg[3] : ''
+        this.#publishErrorHandler?.(id, reason)
+      }
+      return
+    }
+    // EOSE / NOTICE ignored
   }
+}
+
+function extractEventId(eventJson: string): string | null {
+  try {
+    const parsed = JSON.parse(eventJson) as unknown
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof (parsed as { id?: unknown }).id === 'string'
+    ) {
+      return (parsed as { id: string }).id
+    }
+  } catch {}
+  return null
 }

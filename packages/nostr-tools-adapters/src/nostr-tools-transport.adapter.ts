@@ -26,6 +26,10 @@ export class NostrToolsTransportAdapter implements TransportPort {
     this.#handler = handler
   }
 
+  onPublishError(handler: (eventId: string, reason: string) => void): void {
+    this.#ws.onPublishError(handler)
+  }
+
   async publish(bytes: Uint8Array): Promise<void> {
     const json = new TextDecoder().decode(bytes)
     this.#ws.publish(json)

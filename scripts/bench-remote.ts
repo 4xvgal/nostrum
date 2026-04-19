@@ -2,12 +2,13 @@
 /**
  * Latency bench against a remote Nostr relay (no docker).
  *
- *   RELAY_URL=wss://testrelay.era21.space bun run scripts/bench-remote.ts
+ *   RELAY_URL=wss://nostr.vulpem.com bun run scripts/bench-remote.ts
  *
  * Override via RELAY_URL
  * env. SKIP_DOCKER is forced on so setupEnv doesn't try to spin local docker.
  */
 import { benchOne } from './lib/bench-core.js'
+import { measureRelayRtt } from './lib/relay-rtt.js'
 import { ORIGIN, RELAY_URL, setupEnv } from './lib/setup.js'
 
 const N = Number(process.env.BENCH_N ?? 30)
@@ -32,6 +33,8 @@ async function main(): Promise<void> {
     WARMUP,
   )
 
+  const relayStats = await measureRelayRtt(RELAY_URL, N, WARMUP)
+
   const nostrStats = await benchOne(
     `Nostr (wrap → ${RELAY_URL} → unwrap)`,
     (i) =>
@@ -44,7 +47,7 @@ async function main(): Promise<void> {
   )
 
   console.log(`\nLatency (ms) — remote relay ${RELAY_URL}:`)
-  console.table({ HTTP: httpStats, Nostr: nostrStats })
+  console.table({ HTTP: httpStats, Relay: relayStats, Nostr: nostrStats })
   const ratio = nostrStats.mean / httpStats.mean
   console.log(
     `Nostr overhead vs HTTP: ${ratio.toFixed(1)}x  (${(

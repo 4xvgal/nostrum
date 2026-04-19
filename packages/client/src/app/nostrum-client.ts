@@ -32,6 +32,7 @@ type Pending = {
   pathname: string
   expiresAt: number
   strict: boolean
+  wrapId: string
 }
 
 type Manifest = {
@@ -70,6 +71,7 @@ export class NostrumClient {
   #discovery: DiscoveryPort | null = null
   readonly #pinned = new Map<string, ServerInfo>()
   readonly #pending = new Map<string, Pending>()
+  readonly #pendingByWrapId = new Map<string, string>()
   readonly #cache = new Map<string, OriginCacheEntry>()
   readonly #manifestFetches = new Map<string, Promise<Manifest | null>>()
   #sweepTimer: ReturnType<typeof setInterval> | null = null
@@ -135,6 +137,7 @@ export class NostrumClient {
       p.reject(new Error('NostrumClient disconnected'))
     }
     this.#pending.clear()
+    this.#pendingByWrapId.clear()
     await this.#transport?.disconnect()
     this.#connected = false
   }
@@ -228,12 +231,14 @@ export class NostrumClient {
       this.config.secretKey,
       this.config.ttl,
     )
+    const wrapId = extractWrapId(wrapped)
 
     const expiresAt =
       Math.floor(Date.now() / 1000) + this.config.ttl
     const promise = new Promise<Response>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.#pending.delete(id)
+        if (wrapId) this.#pendingByWrapId.delete(wrapId)
         const err = new Error(
           `NostrumClient fetch timeout after ${this.config.ttl}s`,
         )
@@ -251,7 +256,9 @@ export class NostrumClient {
         pathname: u.pathname,
         expiresAt,
         strict,
+        wrapId: wrapId ?? '',
       })
+      if (wrapId) this.#pendingByWrapId.set(wrapId, id)
     })
 
     await this.#transport!.publish(wrapped)
@@ -320,11 +327,27 @@ export class NostrumClient {
     this.#transport!.onEvent((bytes) => {
       void this.#onEvent(bytes)
     })
+    this.#transport!.onPublishError?.((wrapId, reason) => {
+      this.#onPublishError(wrapId, reason)
+    })
     await this.#transport!.connect()
     this.#connected = true
     const intervalMs = Math.max(this.config.ttl * 1000, 1000)
     this.#sweepTimer = setInterval(() => this.#sweepPending(), intervalMs)
     ;(this.#sweepTimer as { unref?: () => void }).unref?.()
+  }
+
+  #onPublishError(wrapId: string, reason: string): void {
+    const reqId = this.#pendingByWrapId.get(wrapId)
+    if (!reqId) return
+    const p = this.#pending.get(reqId)
+    if (!p) return
+    clearTimeout(p.timer)
+    this.#pending.delete(reqId)
+    this.#pendingByWrapId.delete(wrapId)
+    const err = new Error(`NostrumClient publish rejected: ${reason}`)
+    err.name = 'PublishRejectedError'
+    p.reject(err)
   }
 
   #sweepPending(): void {
@@ -333,6 +356,7 @@ export class NostrumClient {
       if (p.expiresAt <= now) {
         clearTimeout(p.timer)
         this.#pending.delete(id)
+        if (p.wrapId) this.#pendingByWrapId.delete(p.wrapId)
         const err = new Error(
           'NostrumClient fetch timeout (pending entry swept)',
         )
@@ -358,6 +382,7 @@ export class NostrumClient {
       ) {
         clearTimeout(p.timer)
         this.#pending.delete(res.id)
+        if (p.wrapId) this.#pendingByWrapId.delete(p.wrapId)
         const entry = this.#cache.get(p.origin)
         if (entry) entry.disabledPaths.add(`${p.method} ${p.pathname}`)
         if (p.strict) {
@@ -380,11 +405,26 @@ export class NostrumClient {
 
       clearTimeout(p.timer)
       this.#pending.delete(res.id)
+      if (p.wrapId) this.#pendingByWrapId.delete(p.wrapId)
       p.resolve(toWebResponse(res))
     } catch {
       // per-event isolation
     }
   }
+}
+
+function extractWrapId(bytes: Uint8Array): string | null {
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof (parsed as { id?: unknown }).id === 'string'
+    ) {
+      return (parsed as { id: string }).id
+    }
+  } catch {}
+  return null
 }
 
 function randomCorrelationId(): string {

@@ -11,7 +11,7 @@
     "smoke:strict": "bun run scripts/smoke-strict.ts",
     "bench": "bun run scripts/bench.ts",
     "bench-nostream": "bun run scripts/bench-nostream.ts",
-    "bench-remote": "RELAY_URL=wss://testrelay.era21.space SKIP_DOCKER=1 bun run scripts/bench-remote.ts"
+    "bench-remote": "RELAY_URL=wss://nostr.vulpem.com SKIP_DOCKER=1 bun run scripts/bench-remote.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
