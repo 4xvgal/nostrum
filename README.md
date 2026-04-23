@@ -168,6 +168,31 @@ Packages:
 - [nostr-tools](https://github.com/nbd-wtf/nostr-tools) (default) or
   [NDK](https://github.com/nostr-dev-kit/ndk) for Nostr primitives
 
+## Try it
+
+Run the reference example (BTC price-alert bot) in two terminals — no local
+relay, no DNS, no TLS setup. Uses public Nostr relays by default.
+
+```bash
+bun install
+
+# terminal 1 — bot server (generates a keypair on first run)
+cd packages/examples/btc-alert-bot/server \
+  && cp .env.example .env \
+  && bun run gen-keys:env \
+  && bun run dev
+# → prints the bot's hex pubkey; copy it
+
+# terminal 2 — PWA (paste the pubkey into VITE_SERVER_PUBKEY)
+cd packages/examples/btc-alert-bot/web \
+  && cp .env.example .env.local \
+  && bun run dev
+# → http://localhost:5173
+```
+
+Full walkthrough, identity model, and endpoints:
+[`packages/examples/btc-alert-bot`](packages/examples/btc-alert-bot).
+
 ## Usage
 
 Server:
